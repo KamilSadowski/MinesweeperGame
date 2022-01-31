@@ -348,8 +348,31 @@ MonoBehaviour:
   - {r: 1, g: 0.57254905, b: 0.27058825, a: 1}
   - {r: 1, g: 0.41960788, b: 0.27058825, a: 1}
   Danger: {fileID: 4409551505248986974}
-  WallSprite: {fileID: 21300000, guid: 5628a04f3be52d945b0af87c79b711b0, type: 3}
-  NormalSprite: {fileID: 21300000, guid: fb7fef40d9c26fc48bacc667904b0aa3, type: 3}
+  WallSpriteState:
+    m_HighlightedSprite: {fileID: 21300000, guid: 5628a04f3be52d945b0af87c79b711b0, type: 3}
+    m_PressedSprite: {fileID: 21300000, guid: 5628a04f3be52d945b0af87c79b711b0, type: 3}
+    m_SelectedSprite: {fileID: 21300000, guid: 5628a04f3be52d945b0af87c79b711b0, type: 3}
+    m_DisabledSprite: {fileID: 21300000, guid: 5628a04f3be52d945b0af87c79b711b0, type: 3}
+  NormalSpriteState:
+    m_HighlightedSprite: {fileID: 21300000, guid: fb7fef40d9c26fc48bacc667904b0aa3, type: 3}
+    m_PressedSprite: {fileID: 21300000, guid: fb7fef40d9c26fc48bacc667904b0aa3, type: 3}
+    m_SelectedSprite: {fileID: 21300000, guid: fb7fef40d9c26fc48bacc667904b0aa3, type: 3}
+    m_DisabledSprite: {fileID: 21300000, guid: 2ace0c12b5002d84a924ea16dd9e4f08, type: 3}
+  GrassSpriteState:
+    m_HighlightedSprite: {fileID: 21300000, guid: 4a792a480e2695a47b4ddfa855f9a80a, type: 3}
+    m_PressedSprite: {fileID: 21300000, guid: 4a792a480e2695a47b4ddfa855f9a80a, type: 3}
+    m_SelectedSprite: {fileID: 21300000, guid: 4a792a480e2695a47b4ddfa855f9a80a, type: 3}
+    m_DisabledSprite: {fileID: 21300000, guid: 0e0f07b453e584c44a4cc10639158061, type: 3}
+  MudSpriteState:
+    m_HighlightedSprite: {fileID: 21300000, guid: 022654b0a2d95ea48852413cc619de04, type: 3}
+    m_PressedSprite: {fileID: 21300000, guid: 022654b0a2d95ea48852413cc619de04, type: 3}
+    m_SelectedSprite: {fileID: 21300000, guid: 022654b0a2d95ea48852413cc619de04, type: 3}
+    m_DisabledSprite: {fileID: 21300000, guid: 8d2dbc9dba209ba479e090df6d2d8427, type: 3}
+  WaterSpriteState:
+    m_HighlightedSprite: {fileID: 21300000, guid: ad91c57f89974d1408ce8fef2e9bddf8, type: 3}
+    m_PressedSprite: {fileID: 21300000, guid: ad91c57f89974d1408ce8fef2e9bddf8, type: 3}
+    m_SelectedSprite: {fileID: 21300000, guid: ad91c57f89974d1408ce8fef2e9bddf8, type: 3}
+    m_DisabledSprite: {fileID: 21300000, guid: 0c23b454b810e5d40a7b22bf6022b311, type: 3}
 --- !u!114 &7645556149073689493
 MonoBehaviour:
   m_ObjectHideFlags: 0

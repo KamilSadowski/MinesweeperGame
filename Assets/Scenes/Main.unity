@@ -736,6 +736,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PlayerPrefab: {fileID: 1106657385652032262, guid: f66e5d88e2a28e8458c87c33951d110e, type: 3}
+  EnemyPrefabs:
+  - {fileID: 9168662921950367589, guid: 33c3f573b30f6164a8450e8319778537, type: 3}
+  NumberOfLives: 3
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -1374,6 +1377,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   BoxPrefab: {fileID: 5712487045383550580, guid: 3f2e2c290dad5944e84f3a290e42b147, type: 3}
   NumberOfDangerousBoxes: 5
+  _game: {fileID: 0}
 --- !u!225 &1312689711
 CanvasGroup:
   m_ObjectHideFlags: 0

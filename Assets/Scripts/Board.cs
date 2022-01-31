@@ -5,15 +5,64 @@ using UnityEngine;
 public class Board : MonoBehaviour
 {
     public enum Event { ClickedBlank, ClickedNearDanger, ClickedDanger, Win };
+    public enum Direction { Up, Down, Left, Right };
+
+    // Holds data needed for creating a maze
+    struct MazeCell
+    {
+        public int TopLeft { get; private set; }
+        public int TopRight { get; private set; }
+        public int BotLeft { get; private set; }
+        public int BotRight { get; private set; }
+
+        public MazeCell(int topLeft, int topRight, int botLeft, int botRight)
+        {
+            TopLeft = topLeft;
+            TopRight = topRight;
+            BotLeft = botLeft;
+            BotRight = botRight;
+        }
+    }
+
+    class MazeTreeNode
+    {
+        public int ThisCell { get; private set; }
+        public int TopCell { get; private set; }
+        public int BottomCell { get; private set; }
+        public int RightCell { get; private set; }
+        public int LeftCell { get; private set; }
+        public bool Visited { get; private set; }   
+
+        public MazeTreeNode(int thisCell, int topCell, int bottomCell, int rightCell, int leftCell, bool visited = false)
+        {
+            ThisCell = thisCell;
+            TopCell = topCell;
+            BottomCell = bottomCell;
+            RightCell = rightCell;
+            LeftCell = leftCell;
+            Visited = visited;  
+        }
+
+        public void Visit()
+        {
+            Visited = true;
+        }
+    }
 
     [SerializeField] private Box BoxPrefab;
     [SerializeField] public const int Width = 10;
     [SerializeField] public const int Height = 10;
-    [SerializeField] private int NumberOfDangerousBoxes = 1;
-
+    [SerializeField] private const int NumberOfDangerousBoxes = 5;
+    [SerializeField] private const int CostFieldChance = 5;
+    
+    public Game _game;
     public Box[] _grid { get; private set; }
-    private int[,] _grid2D = new int[Width, Height]; // 2D array holding the index of each box on the grid
-    private List<int> _safeBoxes = new List<int>(); // Holds all of the boxes that are not bombs
+    List<MazeCell> _gridCells = new List<MazeCell>();
+    List<MazeTreeNode> _mazeTree = new List<MazeTreeNode>();
+    // 2D array holding the index of each box on the grid (Makes updating fields less computationally expensive)
+    private int[,] _grid2D = new int[Width, Height];
+    // Holds all of the boxes that are not bombs
+    private List<int> _safeBoxes = new List<int>(); 
     private List<bool> _dangerList = new List<bool>();
     private Vector2Int[] _neighbours;
     private RectTransform _rect;
@@ -38,17 +87,147 @@ public class Board : MonoBehaviour
         }
     }
 
-    public void RechargeBoxes()
+    // Returns walkable fields
+    void GenerateMaze()
     {
-        // Create a maze
+        // Create a new maze
         // Get edges
-        for (int row = 0; row < Height; ++row)
+        _gridCells.Clear();
+        _mazeTree.Clear();
+        for (int row = 0; row < Height - 1; row += 2)
         {
-            for (int column = 0; column < Width; ++column)
+            for (int column = 0; column < Width - 1; column += 2)
             {
+                int index = row * Width + column;
+                // Add edge
+                _gridCells.Add(new MazeCell(row * Width + column,
+                                            row * Width + column + 1,
+                                            (row + 1) * Width + column,
+                                            (row + 1) * Width + column + 1));
+                // Reset wall
+                // Top left will always be a passage
+                _grid[_gridCells[_gridCells.Count - 1].TopLeft].Wall(true);
+                _grid[_gridCells[_gridCells.Count - 1].TopRight].Wall(true);
+                _grid[_gridCells[_gridCells.Count - 1].BotLeft].Wall(true);
+                _grid[_gridCells[_gridCells.Count - 1].BotRight].Wall(true);
 
+                int topNode = _gridCells.Count - (Width / 2) - 1;
+                if (0 > topNode)
+                {
+                    topNode = -1;
+                }
+
+                int bottomNode = _gridCells.Count + (Width / 2) - 1;
+                if (bottomNode > Width / 2 * Height / 2 - 1)
+                {
+                    bottomNode = -1;
+                }
+
+                int rightNode = _gridCells.Count + 1 - 1;
+                if (rightNode % (Width / 2) == 0 || rightNode < 0)
+                {
+                    rightNode = -1;
+                }
+
+                int leftNode = _gridCells.Count - 1 - 1;
+                if ((leftNode + 1) % (Width / 2) == 0 || leftNode >= Width * Height - 1)
+                {
+                    leftNode = -1;
+                }
+
+
+                MazeTreeNode thisNode = new MazeTreeNode(_gridCells.Count - 1, topNode, bottomNode, rightNode, leftNode);
+                _mazeTree.Add(thisNode);
             }
         }
+
+        // Choose a random starting point
+        int startPoint = UnityEngine.Random.Range(0, _gridCells.Count);
+        int indexToVisit = startPoint;
+        Stack<int> visitedCells = new Stack<int>();
+        int randDir = 0;
+        List<int> possibleDirections = new List<int>(4);
+
+        // Keep visiting neighbouring cells
+        do
+        {
+            // Make a passage
+            TrySetWall(_gridCells[indexToVisit].TopLeft, false);
+            _mazeTree[indexToVisit].Visit();
+            possibleDirections.Clear();
+
+            // Chose which way to go
+            randDir = -1;
+            if (_mazeTree[indexToVisit].TopCell != -1 &&
+                !_mazeTree[_mazeTree[indexToVisit].TopCell].Visited)
+            {
+                possibleDirections.Add((int)Direction.Up);
+            }
+            if (_mazeTree[indexToVisit].BottomCell != -1 &&
+                !_mazeTree[_mazeTree[indexToVisit].BottomCell].Visited)
+            {
+                possibleDirections.Add((int)Direction.Down);
+            }
+            if (_mazeTree[indexToVisit].LeftCell != -1 &&
+                !_mazeTree[_mazeTree[indexToVisit].LeftCell].Visited)
+            {
+                possibleDirections.Add((int)Direction.Left);
+            }
+            if (_mazeTree[indexToVisit].RightCell != -1 &&
+                !_mazeTree[_mazeTree[indexToVisit].RightCell].Visited)
+            {
+                possibleDirections.Add((int)Direction.Right);
+            }
+
+            if (possibleDirections.Count == 0)
+            {
+                randDir = -1;
+            }
+            else randDir = possibleDirections[UnityEngine.Random.Range(0, possibleDirections.Count)];
+
+            // Move onto the selected cell          
+            if (randDir == (int)Direction.Up)
+            {
+                visitedCells.Push(_mazeTree[indexToVisit].TopCell);
+                TrySetWall(_gridCells[_mazeTree[indexToVisit].TopCell].BotLeft, false);
+                indexToVisit = _mazeTree[indexToVisit].TopCell;
+            }
+            else if (randDir == (int)Direction.Down)
+            {
+                TrySetWall(_gridCells[indexToVisit].BotLeft, false);
+                visitedCells.Push(_mazeTree[indexToVisit].BottomCell);
+                indexToVisit = _mazeTree[indexToVisit].BottomCell;
+            }
+            else if (randDir == (int)Direction.Left)
+            {
+                visitedCells.Push(_mazeTree[indexToVisit].LeftCell);
+                TrySetWall(_gridCells[_mazeTree[indexToVisit].LeftCell].TopRight, false);
+                indexToVisit = _mazeTree[indexToVisit].LeftCell;
+            }
+            else if (randDir == (int)Direction.Right)
+            {
+                TrySetWall(_gridCells[indexToVisit].TopRight, false);
+                visitedCells.Push(_mazeTree[indexToVisit].RightCell);
+                indexToVisit = _mazeTree[indexToVisit].RightCell;
+            }
+
+            // If all neighbouring cells visited, back up to the previous cell
+            else
+            {
+                visitedCells.Pop();
+                if (visitedCells.Count == 0)
+                {
+                    break;
+                }
+                indexToVisit = visitedCells.Peek();
+            }
+
+        } while (true);
+    }
+
+    public void RechargeBoxes()
+    {
+        GenerateMaze();
 
         // Set up bombs
         _dangerList.Clear();
@@ -68,19 +247,43 @@ public class Board : MonoBehaviour
             for (int column = 0; column < Width; ++column)
             {
                 int index = row * Width + column;
+
+                // Remove the wall if placing a bomb and then 2 random surrounding walls for access
+                if (_dangerList[index] && _grid[index].IsWall())
+                {
+                    _grid[index].Wall(false);
+                    int wallIndex = 0;
+                    int[] surroundingWalls = { row - 1 * Width + column,
+                                               row + 1 * Width + column, 
+                                               row * Width + column - 1, 
+                                               Width + column + 1};
+                    surroundingWalls.RandomShuffle();
+
+                    for (int wallsAdded = 0; wallsAdded < 2; ++wallIndex)
+                    {
+                        if (TrySetWall(surroundingWalls[wallIndex], false)) ++wallsAdded;
+                    }
+                }
+
                 _grid[index].Charge(CountDangerNearby(_dangerList, index), _dangerList[index], OnClickedBox);
 
+                // Randomise the cost of the field
+                if (UnityEngine.Random.Range(0, 100) <= CostFieldChance)
+                {
+                    _grid[index].SetType(UnityEngine.Random.Range(2, Box.BoxTypeNo + 1));
+                }
+                else
+                {
+                    _grid[index].SetType(Box.BoxType.Floor);
+                }
+
                 // Add non dangerous fields to the safe box array
-                if (!_grid[index].IsDangerous)
+                if (!_grid[index].IsWall() && !_grid[index].IsDangerous())
                 {
                     _safeBoxes.Add(index);
                 }
             }
         }
-    }
-
-    private void CreateMaze()
-    {
 
     }
 
@@ -90,10 +293,69 @@ public class Board : MonoBehaviour
         OnClickedBox(_grid[_grid2D[squarePosition.x, squarePosition.y]]);
     }
 
+    public void EnemyLeftSquare(Vector2Int squarePosition)
+    {
+        _grid[_grid2D[squarePosition.x, squarePosition.y]].EmptyBox();
+        _grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
+    }
+
+    public void EnemyMovedToSquare(Vector2Int squarePosition)
+    {
+        if (_grid[_grid2D[squarePosition.x, squarePosition.y]].HasPlayer())
+        {
+            _clickEvent?.Invoke(Event.ClickedDanger);
+        }
+        else
+        {
+            _grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter();
+            _grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
+        }        
+    }
+
+    public void PlayerLeftSquare(Vector2Int squarePosition)
+    {
+        _grid[_grid2D[squarePosition.x, squarePosition.y]].EmptyBox();
+    }
+
+    public void PlayerMovedToSquare(Vector2Int squarePosition)
+    {
+        int index = _grid2D[squarePosition.x, squarePosition.y];
+        if (_grid[index].HasEnemy())
+        {
+            _clickEvent?.Invoke(Event.ClickedDanger);
+        }
+        else
+        {
+            _grid[index].PlayerEnter();
+            // Enemy moves are adjusted based on the cost of the player move
+            _game.EnemyMoves(_grid[index].Cost);
+        }
+    }
+
     // Returns a random grid position that is safe
     public Vector2Int RandomSafePos()
     {
         return _safeBoxes.Count > 0 ? _grid[_safeBoxes[UnityEngine.Random.Range(0, _safeBoxes.Count)]].Get2DPos() : Vector2Int.zero;
+    }
+
+    // Removes the returned random grid position from safe positions
+    public Vector2Int RandomSafePos(bool removePos)
+    {
+        if (!removePos) { return RandomSafePos(); }
+        else
+        {
+            if (_safeBoxes.Count > 0)
+            {
+                int randomIndex = UnityEngine.Random.Range(0, _safeBoxes.Count);
+                int gridPos = _safeBoxes[randomIndex];
+                _safeBoxes.RemoveAt(randomIndex);
+                return _grid[gridPos].Get2DPos();
+            }
+            else
+            {
+                return Vector2Int.zero;
+            }
+        }
     }
 
     public Vector2Int GetCenter()
@@ -112,9 +374,9 @@ public class Board : MonoBehaviour
         }
     }
 
-    public void BoxDangerUpdate(int index)
+    public void BoxDangerUpdate(int index, bool revealSquares = true)
     {
-        _grid[index].UpdateDanger(CountDangerNearby(_dangerList, index));
+        _grid[index].UpdateDanger(CountDangerNearby(_dangerList, index), revealSquares);
     }
 
     private void Awake()
@@ -190,7 +452,7 @@ public class Board : MonoBehaviour
     {
         Event clickEvent = Event.ClickedBlank;
 
-        if(box.IsDangerous)
+        if(box.IsDangerous())
         {
             clickEvent = Event.ClickedDanger;
         }
@@ -212,7 +474,7 @@ public class Board : MonoBehaviour
 
         for( int count = 0; Result && count < _grid.Length; ++count)
         {
-            if(!_grid[count].IsDangerous && _grid[count].IsActive)
+            if(!_grid[count].IsDangerous() && _grid[count].IsActive)
             {
                 Result = false;
             }
@@ -228,7 +490,7 @@ public class Board : MonoBehaviour
 
     private void RecursiveClearBlanks(Box box)
     {
-        if (!box.IsDangerous)
+        if (!box.IsDangerous())
         {
             box.Reveal();
 
@@ -242,7 +504,7 @@ public class Board : MonoBehaviour
                     bool correctRow = expectedRow == neighbourRow;
                     bool active = neighbourIndex >= 0 && neighbourIndex < _grid.Length && _grid[neighbourIndex].IsActive;
 
-                    if (correctRow && active)
+                    if (correctRow && active && !_grid[neighbourIndex].IsWall())
                     {
                         RecursiveClearBlanks(_grid[neighbourIndex]);
                     }
@@ -266,8 +528,50 @@ public class Board : MonoBehaviour
         return _grid[GetBoxIndex(position)];
     }
 
+    public Box GetBox(int index)
+    {
+        return _grid[index];
+    }
+
+    // Returns true if wall exists
+    public bool TrySetWall(int index, bool wall)
+    {
+        if (index > -1 && index < _grid.Length && _grid[index] != null)
+        {
+            _grid[index].Wall(wall);
+            return true;
+        }
+        return false;
+    }
+
+    // Returns true if within the boundaries of the board
+    public bool IsWithinBounds(Vector2Int position)
+    {
+        return position.x >= 0 && position.y >= 0 && position.x < Width && position.y < Height;
+    }
+
+    // Faster version with no out of range checks
     public int GetBoxIndex(Vector2Int position)
     {
         return _grid2D[position.x, position.y];
+    }
+
+    // Returns -1 if failed
+    public int TryGetBoxIndex(Vector2Int position)
+    {
+        if (position.x < 0) { return -1; }
+        else if (position.y < 0) { return -1; }
+        else if (position.x >= Width) { return -1; }
+        else if (position.y >= Height) { return -1; }
+        return _grid2D[position.x, position.y];
+    }
+
+    public int TryGetBoxIndex(int x, int y)
+    {
+        if (x < 0) { return -1; }
+        else if (y < 0) { return -1; }
+        else if (x >= Width) { return -1; }
+        else if (y >= Height) { return -1; }
+        return _grid2D[x, y];
     }
 }

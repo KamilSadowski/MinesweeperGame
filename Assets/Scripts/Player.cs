@@ -2,23 +2,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Player : MonoBehaviour
+public class Player : Character
 {
     enum PlayerState { inactive, moving, defusing };
 
     const float TimeToDefuse = 1.0f;
     float _defuseTimer = 0.0f;
     PlayerState _state = PlayerState.inactive;
-    SpriteRenderer _spriteRenderer;
-    public Board _board; // No need to encapsulate since the board is set by the game
-    Vector2Int _2DPos;
-    Vector2Int _newPos;
     Box _selectedBomb;
 
     void Awake()
     {
-        _spriteRenderer = GetComponent<SpriteRenderer>();
-        Deactivate();
+        Initialise();
     }
 
     // Update is called once per frame
@@ -109,16 +104,16 @@ public class Player : MonoBehaviour
         }
     }
 
-    public void Deactivate()
+    public override void Deactivate()
     {
+        base.Deactivate();
         _state = PlayerState.inactive;
-        _spriteRenderer.enabled = false;
     }
 
-    public void Activate()
+    public override void Activate()
     {
+        base.Activate();
         _state = PlayerState.moving;
-        _spriteRenderer.enabled = true;
     }
 
     public void Kill()
@@ -131,7 +126,7 @@ public class Player : MonoBehaviour
     }
 
     // Moves the player and activates the square the player lands on
-    public void MoveTo(Vector2Int position)
+    public override void MoveTo(Vector2Int position)
     {
         if (_state == PlayerState.moving)
         {
@@ -140,13 +135,23 @@ public class Player : MonoBehaviour
                 position.y >= 0 && position.y < _board.GetHeight())
             {
                 Box box = _board.GetBox(position);
-                if (!box.IsWall)
+                if (!box.IsWall())
                 {
+                    _board.PlayerLeftSquare(_2DPos);
                     _2DPos = position;
                     transform.position = _board.GetBox(position).transform.position;
                     _board.ActivateSquare(_2DPos);
+                    _board.PlayerMovedToSquare(_2DPos);
                 }
             }
         }
+    }
+
+    public override void Respawn()
+    {
+        _board.PlayerLeftSquare(_2DPos);
+        _2DPos = _spawnPos;
+        transform.position = _board.GetBox(_spawnPos).transform.position;
+        _board.PlayerMovedToSquare(_spawnPos);
     }
 }

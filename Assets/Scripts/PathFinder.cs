@@ -128,6 +128,113 @@ public class PathFinder
         return _path;
     }
 
+    // A modified version of A* which tries to find a path that's as far away from the target as it can be
+    // Iterations need to be specified since the algorithm will never reach an end point
+    public List<Vector2Int> PathAwayFrom(Vector2Int start, Vector2Int danger, int iterations = 10)
+    {
+        _path.Clear();
+        _nodePath.Clear();
+        _openList.Clear();
+        _closedList.Clear();
+
+        // First node will not have a parent
+        _openList.Insert(0, new PathNode(start, 0, null));
+
+        // Keep looking for a path until the list becomes empty
+        while (_openList.Count != 0 && iterations > 0)
+        {
+            --iterations;
+
+            // Get the node from the start of the list
+            _currentNode = _openList[0];
+            _openList.RemoveAt(0);
+
+            // Check all possible directions
+            // North
+            _tmpNode.Position = _currentNode.Position;
+            _tmpNode.Parent = _currentNode;
+            _tmpNode.Position.y = _currentNode.Position.y + 1;
+            if (_board.IsWithinBounds(_tmpNode.Position) && !_board.GetBox(_tmpNode.Position).IsWall())
+            {
+                // If not in the open list or the closed list
+                if (!IsInEitherList(_tmpNode, _closedList, _openList))
+                {
+                    // Calculate cost
+                    if (_tmpNode.Parent != null) { _tmpNode.Cost = _tmpNode.Parent.Cost; }
+
+                    // Add to the list and sort the list
+                    AddToListAndSortAway(_openList, _closedList, _tmpNode, danger);
+                }
+
+            }
+
+            // South
+            _tmpNode.Position = _currentNode.Position;
+            _tmpNode.Parent = _currentNode;
+            _tmpNode.Position.y = _currentNode.Position.y - 1;
+            if (_board.IsWithinBounds(_tmpNode.Position) && !_board.GetBox(_tmpNode.Position).IsWall())
+            {
+                // If not in the open list or the closed list
+                if (!IsInEitherList(_tmpNode, _closedList, _openList))
+                {
+                    // Calculate cost
+                    if (_tmpNode.Parent != null) { _tmpNode.Cost = _tmpNode.Parent.Cost; }
+
+                    // Add to the list and sort the list
+                    AddToListAndSortAway(_openList, _closedList, _tmpNode, danger);
+                }
+            }
+
+            // East
+            _tmpNode.Position = _currentNode.Position;
+            _tmpNode.Parent = _currentNode;
+            _tmpNode.Position.x = _currentNode.Position.x + 1;
+            if (_board.IsWithinBounds(_tmpNode.Position) && !_board.GetBox(_tmpNode.Position).IsWall())
+            {
+                // If not in the open list or the closed list
+                if (!IsInEitherList(_tmpNode, _closedList, _openList))
+                {
+                    // Calculate cost
+                    if (_tmpNode.Parent != null) { _tmpNode.Cost = _tmpNode.Parent.Cost; }
+
+                    // Add to the list and sort the list
+                    AddToListAndSortAway(_openList, _closedList, _tmpNode, danger);
+                }
+            }
+
+            // West
+            _tmpNode.Position = _currentNode.Position;
+            _tmpNode.Parent = _currentNode;
+            _tmpNode.Position.x = _currentNode.Position.x - 1;
+            if (_board.IsWithinBounds(_tmpNode.Position) && !_board.GetBox(_tmpNode.Position).IsWall())
+            {
+                // If not in the open list or the closed list
+                if (!IsInEitherList(_tmpNode, _closedList, _openList))
+                {
+                    // Calculate cost
+                    if (_tmpNode.Parent != null) { _tmpNode.Cost = _tmpNode.Parent.Cost; }
+
+                    // Add to the list and sort the list
+                    AddToListAndSortAway(_openList, _closedList, _tmpNode, danger);
+                }
+            }
+
+            _closedList.Add(_currentNode);
+        }
+
+        // Put together the path that was found in a readable format
+        _nodePath.Insert(0, _currentNode);
+        _path.Insert(0, _nodePath[0].Position);
+
+        while (_nodePath[0].Parent != null)
+        {
+            _nodePath.Insert(0, _nodePath[0].Parent);
+            _path.Insert(0, _nodePath[0].Position);
+        }
+
+        return _path;
+    }
+
     // Checks if the specified position is present in the specified lists
     bool IsInEitherList(PathNode position, List<PathNode> list1, List<PathNode> list2)
     {
@@ -169,6 +276,35 @@ public class PathFinder
         {
             //If the new node's cost is smaller than the next node's, shift everything by one and insert the new node in the empty space
             if ((openList[i].Cost + Vector2Int.Distance(openList[i].Position, goal)) > (toAdd.Cost + Vector2Int.Distance(toAdd.Position, goal)))
+            {
+                openList.Insert(i, new PathNode(toAdd));
+                return;
+            }
+        }
+        //Push back the value if nothing was added in the for loop
+        openList.Add(new PathNode(toAdd));
+
+    }
+
+    // Same as AddToListAndSort but for moving away from the target
+    public void AddToListAndSortAway(List<PathNode> openList, List<PathNode> closedList, PathNode toAdd, Vector2Int goal)
+    {
+        //Check if the node already exists and replace if the value is smaller
+        for (int i = 0; i < closedList.Count; i++)
+        {
+            if (closedList[i].Position.x == toAdd.Position.x && closedList[i].Position.y == toAdd.Position.y &&
+               (closedList[i].Cost + Vector2Int.Distance(closedList[i].Position, goal)) < (toAdd.Cost + Vector2Int.Distance(toAdd.Position, goal)))
+            {
+                //Delete the old value from the closed list
+                closedList.RemoveAt(i);
+            }
+        }
+
+        //Add the value to the open list and sort the list
+        for (int i = 0; i < openList.Count; i++)
+        {
+            //If the new node's cost is smaller than the next node's, shift everything by one and insert the new node in the empty space
+            if ((openList[i].Cost + Vector2Int.Distance(openList[i].Position, goal)) < (toAdd.Cost + Vector2Int.Distance(toAdd.Position, goal)))
             {
                 openList.Insert(i, new PathNode(toAdd));
                 return;

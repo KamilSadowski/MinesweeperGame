@@ -54,16 +54,16 @@ public class Board : MonoBehaviour
     [SerializeField] public const int Height = 10;
     [SerializeField] private const int NumberOfDangerousBoxes = 5;
     [SerializeField] private const int CostFieldChance = 5;
-    
-    public Game _game;
-    public Box[] _grid { get; private set; }
+
+    public Game Game;
+    public Box[] Grid { get; private set; }
     List<MazeCell> _gridCells = new List<MazeCell>();
     List<MazeTreeNode> _mazeTree = new List<MazeTreeNode>();
     // 2D array holding the index of each box on the grid (Makes updating fields less computationally expensive)
     private int[,] _grid2D = new int[Width, Height];
     // Holds all of the boxes that are not bombs
     private List<int> _safeBoxes = new List<int>(); 
-    private List<bool> _dangerList = new List<bool>();
+    private List<int> _dangerList = new List<int>(); // A field can have both, a bomb and an enemy so therefore an int is used instead of a bool
     private Vector2Int[] _neighbours;
     private RectTransform _rect;
     private Action<Event> _clickEvent;
@@ -82,7 +82,8 @@ public class Board : MonoBehaviour
             for (int column = 0; column < Width; ++column)
             {
                 int index = row * Width + column;
-                _grid[index].StandDown();
+                Grid[index].Wall(false);
+                Grid[index].StandDown();
             }
         }
     }
@@ -98,7 +99,6 @@ public class Board : MonoBehaviour
         {
             for (int column = 0; column < Width - 1; column += 2)
             {
-                int index = row * Width + column;
                 // Add edge
                 _gridCells.Add(new MazeCell(row * Width + column,
                                             row * Width + column + 1,
@@ -106,10 +106,10 @@ public class Board : MonoBehaviour
                                             (row + 1) * Width + column + 1));
                 // Reset wall
                 // Top left will always be a passage
-                _grid[_gridCells[_gridCells.Count - 1].TopLeft].Wall(true);
-                _grid[_gridCells[_gridCells.Count - 1].TopRight].Wall(true);
-                _grid[_gridCells[_gridCells.Count - 1].BotLeft].Wall(true);
-                _grid[_gridCells[_gridCells.Count - 1].BotRight].Wall(true);
+                Grid[_gridCells[_gridCells.Count - 1].TopLeft].Wall(true);
+                Grid[_gridCells[_gridCells.Count - 1].TopRight].Wall(true);
+                Grid[_gridCells[_gridCells.Count - 1].BotLeft].Wall(true);
+                Grid[_gridCells[_gridCells.Count - 1].BotRight].Wall(true);
 
                 int topNode = _gridCells.Count - (Width / 2) - 1;
                 if (0 > topNode)
@@ -227,14 +227,16 @@ public class Board : MonoBehaviour
 
     public void RechargeBoxes()
     {
+        _dangerList.Clear();
+        _safeBoxes.Clear();
+
         GenerateMaze();
 
         // Set up bombs
-        _dangerList.Clear();
         int size = Width * Height;
         for (int count = 0; count < size; ++count)
         {
-            _dangerList.Add(count < NumberOfDangerousBoxes);
+            _dangerList.Add(count < NumberOfDangerousBoxes ? 1 : 0);
         }
 
         _bombsLeft = NumberOfDangerousBoxes;
@@ -249,9 +251,9 @@ public class Board : MonoBehaviour
                 int index = row * Width + column;
 
                 // Remove the wall if placing a bomb and then 2 random surrounding walls for access
-                if (_dangerList[index] && _grid[index].IsWall())
+                if (_dangerList[index] > 0 && Grid[index].IsWall())
                 {
-                    _grid[index].Wall(false);
+                    Grid[index].Wall(false);
                     int wallIndex = 0;
                     int[] surroundingWalls = { row - 1 * Width + column,
                                                row + 1 * Width + column, 
@@ -259,26 +261,26 @@ public class Board : MonoBehaviour
                                                Width + column + 1};
                     surroundingWalls.RandomShuffle();
 
-                    for (int wallsAdded = 0; wallsAdded < 2; ++wallIndex)
+                    for (int wallsRemoved = 0; wallsRemoved < 2 && wallsRemoved < 4; ++wallIndex)
                     {
-                        if (TrySetWall(surroundingWalls[wallIndex], false)) ++wallsAdded;
+                        if (TrySetWall(surroundingWalls[wallIndex], false) && !Grid[surroundingWalls[wallIndex]].IsDangerous) ++wallsRemoved;
                     }
                 }
 
-                _grid[index].Charge(CountDangerNearby(_dangerList, index), _dangerList[index], OnClickedBox);
+                Grid[index].Charge(CountDangerNearby(_dangerList, index), _dangerList[index] > 0, OnClickedBox);
 
                 // Randomise the cost of the field
                 if (UnityEngine.Random.Range(0, 100) <= CostFieldChance)
                 {
-                    _grid[index].SetType(UnityEngine.Random.Range(2, Box.BoxTypeNo + 1));
+                    Grid[index].SetType(UnityEngine.Random.Range(2, Box.BoxTypeNo + 1));
                 }
                 else
                 {
-                    _grid[index].SetType(Box.BoxType.Floor);
+                    Grid[index].SetType(Box.BoxType.Floor);
                 }
 
                 // Add non dangerous fields to the safe box array
-                if (!_grid[index].IsWall() && !_grid[index].IsDangerous())
+                if (!Grid[index].IsWall() && !Grid[index].IsDangerous)
                 {
                     _safeBoxes.Add(index);
                 }
@@ -289,53 +291,68 @@ public class Board : MonoBehaviour
 
     public void ActivateSquare(Vector2Int squarePosition)
     {
-        _grid[_grid2D[squarePosition.x, squarePosition.y]].Reveal();
-        OnClickedBox(_grid[_grid2D[squarePosition.x, squarePosition.y]]);
+        Grid[_grid2D[squarePosition.x, squarePosition.y]].Reveal();
+        OnClickedBox(Grid[_grid2D[squarePosition.x, squarePosition.y]]);
     }
 
     public void EnemyLeftSquare(Vector2Int squarePosition)
     {
-        _grid[_grid2D[squarePosition.x, squarePosition.y]].EmptyBox();
-        _grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
+        Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyLeave();
+        --_dangerList[_grid2D[squarePosition.x, squarePosition.y]];
+        Grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
     }
 
-    public void EnemyMovedToSquare(Vector2Int squarePosition)
+    public void EnemyMovedToSquare(Vector2Int squarePosition, int enemyID)
     {
-        if (_grid[_grid2D[squarePosition.x, squarePosition.y]].HasPlayer())
+        if (Grid[_grid2D[squarePosition.x, squarePosition.y]].HasPlayer)
         {
             _clickEvent?.Invoke(Event.ClickedDanger);
         }
         else
         {
-            _grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter();
-            _grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
+            ++_dangerList[_grid2D[squarePosition.x, squarePosition.y]];
+            Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter(enemyID);
+            Grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
         }        
     }
 
     public void PlayerLeftSquare(Vector2Int squarePosition)
     {
-        _grid[_grid2D[squarePosition.x, squarePosition.y]].EmptyBox();
+        Grid[_grid2D[squarePosition.x, squarePosition.y]].PlayerLeave();
     }
 
     public void PlayerMovedToSquare(Vector2Int squarePosition)
     {
         int index = _grid2D[squarePosition.x, squarePosition.y];
-        if (_grid[index].HasEnemy())
+        if (Grid[index].HasEnemy)
         {
-            _clickEvent?.Invoke(Event.ClickedDanger);
+            if (!Game.Enemies[Grid[index].EnemyIndex].IsFleeing())
+            {
+                _clickEvent?.Invoke(Event.ClickedDanger);
+            }
+            else
+            {
+                Game.Enemies[Grid[index].EnemyIndex].Respawn();
+            }
+
         }
         else
         {
-            _grid[index].PlayerEnter();
+            Grid[index].PlayerEnter();
             // Enemy moves are adjusted based on the cost of the player move
-            _game.EnemyMoves(_grid[index].Cost);
+            Game.EnemyMoves(Grid[index].Cost);
         }
     }
 
     // Returns a random grid position that is safe
     public Vector2Int RandomSafePos()
     {
-        return _safeBoxes.Count > 0 ? _grid[_safeBoxes[UnityEngine.Random.Range(0, _safeBoxes.Count)]].Get2DPos() : Vector2Int.zero;
+        return _safeBoxes.Count > 0 ? Grid[_safeBoxes[UnityEngine.Random.Range(0, _safeBoxes.Count)]].Get2DPos() : Vector2Int.zero;
+    }
+
+    public void Reset()
+    {
+        _clickEvent?.Invoke(Event.ClickedDanger);
     }
 
     // Removes the returned random grid position from safe positions
@@ -349,7 +366,7 @@ public class Board : MonoBehaviour
                 int randomIndex = UnityEngine.Random.Range(0, _safeBoxes.Count);
                 int gridPos = _safeBoxes[randomIndex];
                 _safeBoxes.RemoveAt(randomIndex);
-                return _grid[gridPos].Get2DPos();
+                return Grid[gridPos].Get2DPos();
             }
             else
             {
@@ -366,7 +383,7 @@ public class Board : MonoBehaviour
     public void BombDefused(int index)
     {
         --_bombsLeft;
-        _dangerList[index] = false;
+        --_dangerList[index];
         if (_bombsLeft == 0)
         {
             // Game is won if no bombs left to defuse
@@ -376,12 +393,12 @@ public class Board : MonoBehaviour
 
     public void BoxDangerUpdate(int index, bool revealSquares = true)
     {
-        _grid[index].UpdateDanger(CountDangerNearby(_dangerList, index), revealSquares);
+        Grid[index].UpdateDanger(CountDangerNearby(_dangerList, index), revealSquares);
     }
 
     private void Awake()
     {
-        _grid = new Box[Width * Height];
+        Grid = new Box[Width * Height];
         _rect = transform as RectTransform;
         RectTransform boxRect = BoxPrefab.transform as RectTransform;
 
@@ -413,35 +430,35 @@ public class Board : MonoBehaviour
             for (int column = 0; column < Height; ++column)
             {
                 int index = row * Width + column;
-                _grid[index] = Instantiate(BoxPrefab, rowObj.transform);
-                _grid[index].Setup(index, row, column, this);
-                RectTransform gridBoxTransform = _grid[index].transform as RectTransform;
-                _grid[index].name = string.Format("ID{0}, Row{1}, Column{2}", index, row, column);
+                Grid[index] = Instantiate(BoxPrefab, rowObj.transform);
+                Grid[index].Setup(index, row, column, this);
+                RectTransform gridBoxTransform = Grid[index].transform as RectTransform;
+                //_grid[index].name = string.Format("ID{0}, Row{1}, Column{2}", index, row, column);
                 gridBoxTransform.anchoredPosition = new Vector2( startPosition.x + (boxRect.sizeDelta.x * column), 0.0f);
                 _grid2D[column, row] = index;
             }
         }
 
         // Sanity check
-        for(int count = 0; count < _grid.Length; ++count)
-        {
-            Debug.LogFormat("Count: {0}  ID: {1}  Row: {2}  Column: {3}", count, _grid[count].ID, _grid[count].RowIndex, _grid[count].ColumnIndex);
-        }
+        //for(int count = 0; count < _grid.Length; ++count)
+        //{
+        //    Debug.LogFormat("Count: {0}  ID: {1}  Row: {2}  Column: {3}", count, _grid[count].ID, _grid[count].RowIndex, _grid[count].ColumnIndex);
+        //}
     }
 
-    private int CountDangerNearby(List<bool> danger, int index)
+    private int CountDangerNearby(List<int> danger, int index)
     {
         int result = 0;
         int boxRow = index / Width;
 
-        if (!danger[index])
+        if (danger[index] == 0)
         {
             for (int count = 0; count < _neighbours.Length; ++count)
             {
                 int neighbourIndex = index + _neighbours[count].x;
                 int expectedRow = boxRow + _neighbours[count].y;
                 int neighbourRow = neighbourIndex / Width;
-                result += (expectedRow == neighbourRow && neighbourIndex >= 0 && neighbourIndex < danger.Count && danger[neighbourIndex]) ? 1 : 0;
+                result += (expectedRow == neighbourRow && neighbourIndex >= 0 && neighbourIndex < danger.Count && danger[neighbourIndex] > 0) ? 1 : 0;
             }
         }
 
@@ -452,9 +469,10 @@ public class Board : MonoBehaviour
     {
         Event clickEvent = Event.ClickedBlank;
 
-        if(box.IsDangerous())
+        if(box.IsDangerous)
         {
             clickEvent = Event.ClickedDanger;
+            box.Defuse();
         }
         else if(box.DangerNearby > 0)
         {
@@ -472,9 +490,9 @@ public class Board : MonoBehaviour
     {
         bool Result = true;
 
-        for( int count = 0; Result && count < _grid.Length; ++count)
+        for( int count = 0; Result && count < Grid.Length; ++count)
         {
-            if(!_grid[count].IsDangerous() && _grid[count].IsActive)
+            if(!Grid[count].IsDangerous && Grid[count].IsActive)
             {
                 Result = false;
             }
@@ -490,7 +508,7 @@ public class Board : MonoBehaviour
 
     private void RecursiveClearBlanks(Box box)
     {
-        if (!box.IsDangerous())
+        if (!box.IsDangerous)
         {
             box.Reveal();
 
@@ -502,11 +520,11 @@ public class Board : MonoBehaviour
                     int expectedRow = box.RowIndex + _neighbours[count].y;
                     int neighbourRow = neighbourIndex / Width;
                     bool correctRow = expectedRow == neighbourRow;
-                    bool active = neighbourIndex >= 0 && neighbourIndex < _grid.Length && _grid[neighbourIndex].IsActive;
+                    bool active = neighbourIndex >= 0 && neighbourIndex < Grid.Length && Grid[neighbourIndex].IsActive;
 
-                    if (correctRow && active && !_grid[neighbourIndex].IsWall())
+                    if (correctRow && active && !Grid[neighbourIndex].IsWall())
                     {
-                        RecursiveClearBlanks(_grid[neighbourIndex]);
+                        RecursiveClearBlanks(Grid[neighbourIndex]);
                     }
                 }
             }
@@ -525,20 +543,20 @@ public class Board : MonoBehaviour
 
     public Box GetBox(Vector2Int position)
     {
-        return _grid[GetBoxIndex(position)];
+        return Grid[GetBoxIndex(position)];
     }
 
     public Box GetBox(int index)
     {
-        return _grid[index];
+        return Grid[index];
     }
 
-    // Returns true if wall exists
+    // Sets the wall and returns true if wall exists
     public bool TrySetWall(int index, bool wall)
     {
-        if (index > -1 && index < _grid.Length && _grid[index] != null)
+        if (index > -1 && index < Grid.Length && Grid[index] != null)
         {
-            _grid[index].Wall(wall);
+            Grid[index].Wall(wall);
             return true;
         }
         return false;

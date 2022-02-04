@@ -4,12 +4,12 @@ using UnityEngine;
 
 public class Player : Character
 {
-    enum PlayerState { inactive, moving, defusing };
+    enum PlayerState { inactive, moving, defusing, stunned };
+    const float StunDuration = 1.0f;
 
-    const float TimeToDefuse = 1.0f;
-    float _defuseTimer = 0.0f;
     PlayerState _state = PlayerState.inactive;
     Box _selectedBomb;
+    Timer _stunTimer = new Timer(StunDuration);
 
     void Awake()
     {
@@ -53,55 +53,60 @@ public class Player : Character
                         MoveTo(_newPos);
                     }
 
+                    // Skip turn
+                    if (Input.GetKeyDown(KeyCode.Space))
+                    {
+                        MoveTo(_2DPos);
+                    }
+
                     // Defusing input
                     if (Input.GetKeyDown(KeyCode.DownArrow))
                     {
-                        if (_2DPos.y + 1 < _board.GetHeight())
+                        if (_2DPos.y + 1 < Board.GetHeight())
                         {
-                            _board.GetBox(new Vector2Int(_2DPos.x, _2DPos.y + 1)).Defuse();
+                            if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y + 1))) Stun();
                         }
+                        else Stun();
                     }
                     if (Input.GetKeyDown(KeyCode.RightArrow))
                     {
-                        if (_2DPos.x + 1 < _board.GetWidth())
+                        if (_2DPos.x + 1 < Board.GetWidth())
                         {
-                            _board.GetBox(new Vector2Int(_2DPos.x + 1, _2DPos.y)).Defuse();
+                            if (!StartDefusing(new Vector2Int(_2DPos.x + 1, _2DPos.y))) Stun();
                         }
+                        else Stun();
                     }
                     if (Input.GetKeyDown(KeyCode.UpArrow))
                     {
                         if (_2DPos.y - 1 >= 0)
                         {
-                            _board.GetBox(new Vector2Int(_2DPos.x, _2DPos.y - 1)).Defuse();
+                            if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y - 1))) Stun();
                         }
+                        else Stun();
                     }
                     if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
                         if (_2DPos.x - 1 >= 0)
                         {
-                            _board.GetBox(new Vector2Int(_2DPos.x - 1, _2DPos.y)).Defuse();
+                            if (!StartDefusing(new Vector2Int(_2DPos.x - 1, _2DPos.y))) Stun();
                         }
+                        else Stun();
                     }
 
                     break;
                 }
-            case PlayerState.defusing:
+            case PlayerState.stunned:
                 {
-                    if (_defuseTimer < TimeToDefuse)
+                    if (_stunTimer.Update(Time.deltaTime))
                     {
-                        _defuseTimer += Time.deltaTime;
+                        _state = PlayerState.moving;
                     }
-                    else
-                    {
-                        _defuseTimer = 0.0f;
-                    }
-                    _state = PlayerState.moving;
-                    _selectedBomb.Defuse();
-
-
                     break;
                 }
         }
+
+        // Reset
+        if (_state != PlayerState.inactive && Input.GetKeyDown(KeyCode.R)) Board.Reset();
     }
 
     public override void Deactivate()
@@ -118,6 +123,7 @@ public class Player : Character
 
     public void Kill()
     {
+        CancelDefusing();
         _state = PlayerState.inactive;
     }
     public void Win()
@@ -131,17 +137,17 @@ public class Player : Character
         if (_state == PlayerState.moving)
         {
             // Check if the new position is on the map
-            if (position.x >= 0 && position.x < _board.GetWidth() &&
-                position.y >= 0 && position.y < _board.GetHeight())
+            if (position.x >= 0 && position.x < Board.GetWidth() &&
+                position.y >= 0 && position.y < Board.GetHeight())
             {
-                Box box = _board.GetBox(position);
+                Box box = Board.GetBox(position);
                 if (!box.IsWall())
                 {
-                    _board.PlayerLeftSquare(_2DPos);
+                    Board.PlayerLeftSquare(_2DPos);
                     _2DPos = position;
-                    transform.position = _board.GetBox(position).transform.position;
-                    _board.ActivateSquare(_2DPos);
-                    _board.PlayerMovedToSquare(_2DPos);
+                    transform.position = Board.GetBox(position).transform.position;
+                    Board.ActivateSquare(_2DPos);
+                    Board.PlayerMovedToSquare(_2DPos);
                 }
             }
         }
@@ -149,9 +155,44 @@ public class Player : Character
 
     public override void Respawn()
     {
-        _board.PlayerLeftSquare(_2DPos);
-        _2DPos = _spawnPos;
-        transform.position = _board.GetBox(_spawnPos).transform.position;
-        _board.PlayerMovedToSquare(_spawnPos);
+        CancelDefusing();
+        Board.PlayerLeftSquare(_2DPos);
+        _2DPos = SpawnPos;
+        transform.position = Board.GetBox(SpawnPos).transform.position;
+        Board.PlayerMovedToSquare(SpawnPos);
+    }
+
+    // Returns true if started defusing
+    bool StartDefusing(Vector2Int bombPosition)
+    {
+        _selectedBomb = Board.GetBox(bombPosition);
+        if (_selectedBomb.IsDangerous)
+        {
+            _state = PlayerState.defusing;
+            Board.Game.StartDefusing();
+            return true;
+        }
+        return false;
+    }
+
+    public void FinishDefusing()
+    {
+        _state = PlayerState.moving;
+        _selectedBomb.Defuse();
+        _selectedBomb = null;
+        Board.Game.FinishDefusing();
+    }
+
+    public void CancelDefusing()
+    {
+        _state = PlayerState.moving;
+        _selectedBomb = null;
+        Board.Game.CancelDefusing();
+    }
+
+    public void Stun()
+    {
+        _stunTimer.Reset(StunDuration);
+        _state = PlayerState.stunned;
     }
 }

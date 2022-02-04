@@ -5,21 +5,19 @@ using TMPro;
 
 public class Box : MonoBehaviour
 {
-    // Using the state because none of these states should be allowed to be active at once
-    public enum BoxState { Neutral, Wall, Player, Enemy, Bomb };
-
     // Box type will determine the cost to travel through the box
-    public enum BoxType { Floor = 1, Grass, Mud, Water };
+    public enum BoxType { Wall, Floor, Grass, Mud, Water };
     public const int BoxTypeNo = (int)BoxType.Water;
-    const BoxState MinDangerState = BoxState.Enemy; // Anything above this index is dangerous
 
     [SerializeField] private Color[] DangerColors = new Color[8];
-    [SerializeField] private Image Danger;
     [SerializeField] private SpriteState WallSpriteState;
     [SerializeField] private SpriteState NormalSpriteState;
     [SerializeField] private SpriteState GrassSpriteState;
     [SerializeField] private SpriteState MudSpriteState;
     [SerializeField] private SpriteState WaterSpriteState;
+
+    [SerializeField] private Color DiscoveredColour;
+    [SerializeField] private Color UnseenColour;
     
 
     private TMP_Text _textDisplay;
@@ -28,24 +26,23 @@ public class Box : MonoBehaviour
     private Board _board;
     private BoxType _type;
 
+
+    public int EnemyIndex { get; private set; } = -1;
+    public bool HasEnemy { get; private set; }
+    public bool HasPlayer { get; private set; }
     public int RowIndex { get; private set; }
     public int ColumnIndex { get; private set; }
     public int ID { get; private set; }
     public int DangerNearby { get; private set; }
     public int Cost { get; private set; } = 1;
-
-    public BoxState State { get; private set; } = BoxState.Neutral;
-
     public bool IsActive { get { return _button != null && _button.interactable; } }
+    public bool IsDangerous { get; private set; }
+    public bool IsWall() { return _type == BoxType.Wall; }
 
-    public bool IsDangerous() { return State >= MinDangerState; }
-    public bool IsWall() { return State == BoxState.Wall; }
-    public bool HasEnemy() { return State == BoxState.Enemy; }
-    public bool HasPlayer() { return State == BoxState.Player; }
-
-    public void PlayerEnter() { State = BoxState.Player; }
-    public void EmptyBox() { State = BoxState.Neutral; }
-    public void EnemyEnter() { State = BoxState.Enemy; }
+    public void PlayerEnter() { HasPlayer = true; }
+    public void EnemyLeave() { HasEnemy = false; EnemyIndex = -1; }
+    public void PlayerLeave() { HasPlayer = false; EnemyIndex = -1; }
+    public void EnemyEnter(int enemyIndex) { HasEnemy = true; EnemyIndex = enemyIndex; }
 
     public void Setup(int id, int row, int column, Board board)
     {
@@ -53,6 +50,7 @@ public class Box : MonoBehaviour
         RowIndex = row;
         ColumnIndex = column;
         _board = board;
+        EnemyIndex = -1;
     }
 
 
@@ -102,7 +100,7 @@ public class Box : MonoBehaviour
     {
         _changeCallback = onChange;
         DangerNearby = dangerNearby;
-        if (danger) { State = BoxState.Bomb; }
+        IsDangerous = danger;
         ResetState();
     }
 
@@ -112,7 +110,7 @@ public class Box : MonoBehaviour
         DangerNearby = dangerNearby;
         if (_textDisplay != null)
         {
-            _textDisplay.enabled = revealSquare ? true : _textDisplay.enabled;        
+            if (revealSquare) _textDisplay.enabled = true;
             if (DangerNearby > 0)
             {
                 _textDisplay.text = DangerNearby.ToString("D");
@@ -127,17 +125,18 @@ public class Box : MonoBehaviour
 
     public void Wall(bool isWall)
     {
-        State = isWall ? BoxState.Wall : BoxState.Neutral;
         if (_button != null)
         {
             if (isWall)
             {
+                _type = BoxType.Wall;
                 _button.spriteState = WallSpriteState;
                 _button.image.sprite =  WallSpriteState.highlightedSprite;
                 _button.interactable = false;
             }
             else
             {
+                _type = BoxType.Floor;
                 _button.spriteState = NormalSpriteState;
                 _button.image.sprite = NormalSpriteState.highlightedSprite;
                 _button.interactable = true;
@@ -151,11 +150,17 @@ public class Box : MonoBehaviour
         if (_button != null)
         {
             _button.interactable = false;
+            _button.image.color = DiscoveredColour;
         }
 
         if (_textDisplay != null)
         {
             _textDisplay.enabled = true;
+        }
+
+        if (HasEnemy)
+        {
+            _board.Game.Enemies[EnemyIndex].Visible(true);
         }
     }
 
@@ -164,11 +169,7 @@ public class Box : MonoBehaviour
         if (_button != null)
         {
             _button.interactable = false;
-        }
-
-        if (Danger != null)
-        {
-            Danger.enabled = false;
+            _button.image.color = DiscoveredColour;
         }
 
         if (_textDisplay != null)
@@ -179,17 +180,18 @@ public class Box : MonoBehaviour
 
     public void OnClick()
     {
-        if (State == BoxState.Wall) return;
+        if (IsWall()) return;
+
+        if (HasEnemy)
+        {
+            _board.Game.Enemies[EnemyIndex].Visible(true);
+        }
 
         if (_button != null)
         {
             _button.interactable = false;
         }
 
-        if (IsDangerous() && Danger != null)
-        {
-            Danger.enabled = true;
-        }
         else if (_textDisplay != null)
         {
             _textDisplay.enabled = true;
@@ -211,11 +213,6 @@ public class Box : MonoBehaviour
 
     private void ResetState()
     {
-        if (Danger != null)
-        {
-            Danger.enabled = false;
-        }
-
         if (_textDisplay != null)
         {
             if (DangerNearby > 0)
@@ -234,6 +231,7 @@ public class Box : MonoBehaviour
         if (_button != null)
         {
             _button.interactable = true;
+            _button.image.color = UnseenColour;
         }
     }
 
@@ -246,9 +244,9 @@ public class Box : MonoBehaviour
     public bool Defuse()
     {
         // Defuse if a bomb
-        if (IsDangerous())
+        if (IsDangerous)
         {
-            State = BoxState.Neutral;
+            IsDangerous = false;
             _board.BombDefused(ID);
             OnClick();
 

@@ -5,12 +5,15 @@ public class Game : MonoBehaviour
 {
     [SerializeField] private GameObject PlayerPrefab;
     [SerializeField] private List<GameObject> EnemyPrefabs = new List<GameObject>();
-    [SerializeField] private int NumberOfLives = 3;
+    [SerializeField] private int NumberOfLives = 5;
+    [SerializeField] private Canvas Canvas;
 
-    public Player _player { get; private set; }
-    public List<Enemy> _enemies { get; private set; } = new List<Enemy>();
+    public Player Player { get; private set; }
+    public List<Enemy> Enemies { get; private set; } = new List<Enemy>();
 
+    private Timer _movementTimer = new Timer(5.0f); // If the player does not move within this time, the enemy gets a free turn
     private Board _board;
+    private Bomb _bomb;
     private UI _ui;
     private double _gameStartTime;
     private bool _gameInProgress;
@@ -24,43 +27,52 @@ public class Game : MonoBehaviour
             _board.RechargeBoxes();
         }
 
+        if (_bomb == null)
+        {
+            _bomb = FindObjectOfType<Bomb>();
+        }
+
         if (_ui != null)
         {
             _ui.HideMenu();
             _ui.ShowGame();
+            _ui.HideBomb();
         }
 
-        if (_player == null)
-        {
-            _player = Instantiate(PlayerPrefab).GetComponent<Player>();
-            // Setting this here instead of calling GetObjectOfType in the player is a lot faster
-            _player._board = _board;
-        }
-        _player.Activate();
-        _player._spawnPos = _board.RandomSafePos(true);
-        _player.MoveTo(_player._spawnPos);
-
-        if (_enemies.Count == 0)
+        if (Enemies.Count == 0)
         {
             for (int i = 0; i < EnemyPrefabs.Count; ++i)
             {
-                _enemies.Add(Instantiate(EnemyPrefabs[i]).GetComponent<Enemy>());
-                _enemies[i]._board = _board;
-                _enemies[i]._game = this;
-                _enemies[i]._pathFinder = new PathFinder(_board);
-                _enemies[i]._spawnPos = _board.RandomSafePos(true);
-                _enemies[i].MoveTo(_enemies[i]._spawnPos);
-                _enemies[i].Activate();
+                Enemies.Add(Instantiate(EnemyPrefabs[i]).GetComponent<Enemy>());
+                Enemies[i].transform.parent = Canvas.transform;
+                Enemies[i].Board = _board;
+                Enemies[i].Game = this;
+                Enemies[i].ID = i;
+                Enemies[i].PathFinder = new PathFinder(_board);
+                Enemies[i].SpawnPos = _board.RandomSafePos(true);
+                Enemies[i].MoveTo(Enemies[i].SpawnPos);
+                Enemies[i].Activate();
             }
         }
         else
         {
             for (int i = 0; i < EnemyPrefabs.Count; ++i)
             {
-                _enemies[i].Activate();
-                _enemies[i].MoveTo(_board.RandomSafePos(true));
+                Enemies[i].Activate();
+                Enemies[i].MoveTo(_board.RandomSafePos(true));
             }
         }
+
+        if (Player == null)
+        {
+            Player = Instantiate(PlayerPrefab).GetComponent<Player>();
+            Player.transform.parent = Canvas.transform;
+            // Setting this here instead of calling GetObjectOfType in the player is a lot faster
+            Player.Board = _board;
+        }
+        Player.Activate();
+        Player.SpawnPos = _board.RandomSafePos(true);
+        Player.MoveTo(Player.SpawnPos);
     }
 
     public void OnClickedExit()
@@ -81,16 +93,17 @@ public class Game : MonoBehaviour
         {
             _ui.HideResult();
             _ui.ShowMenu();
+            _ui.HideBomb();
         }
 
-        if (_player != null)
+        if (Player != null)
         {
-            _player.Deactivate();
+            Player.Deactivate();
         }
 
-        for (int i = 0; i < _enemies.Count; ++i)
+        for (int i = 0; i < Enemies.Count; ++i)
         {
-            _enemies[i].Deactivate();
+            Enemies[i].Deactivate();
         }
         
     }
@@ -98,7 +111,7 @@ public class Game : MonoBehaviour
     private void Awake()
     {
         _board = transform.parent.GetComponentInChildren<Board>();
-        _board._game = this;
+        _board.Game = this;
         _ui = transform.parent.GetComponentInChildren<UI>();
         _gameInProgress = false;
     }
@@ -122,6 +135,14 @@ public class Game : MonoBehaviour
         {
             _ui.UpdateTimer(_gameInProgress ? Time.realtimeSinceStartupAsDouble - _gameStartTime : 0.0);
         }
+
+        if (_gameInProgress)
+        {
+            if (_movementTimer.Update(Time.deltaTime))
+            {
+                EnemyMoves(1);
+            }
+        }
     }
 
     private void BoardEvent(Board.Event eventType)
@@ -129,16 +150,18 @@ public class Game : MonoBehaviour
         if(eventType == Board.Event.ClickedDanger && _ui != null)
         {
             --_lives;
+            // Respawn player if lives left
             if (_lives > 0)
             {
-                _player.Respawn();
-                foreach (Enemy enemy in _enemies) enemy.Respawn();
+                Player.Respawn();
+                foreach (Enemy enemy in Enemies) enemy.Respawn();
             }
             else
             {
                 _ui.HideGame();
                 _ui.ShowResult(success: false);
-                _player.Kill();
+                Player.Kill();
+                DeactivateEnemies();
             }
         }
 
@@ -146,7 +169,8 @@ public class Game : MonoBehaviour
         {
             _ui.HideGame();
             _ui.ShowResult(success: true);
-            _player.Win();
+            Player.Win();
+            DeactivateEnemies();
         }
 
         if (!_gameInProgress)
@@ -156,11 +180,43 @@ public class Game : MonoBehaviour
         }
     }
 
-    public void EnemyMoves(int playerMoveCost)
+    public void EnemyMoves(int steps)
     {
-        foreach (Enemy enemy in _enemies)
+        foreach (Enemy enemy in Enemies)
         {
-            enemy.Move(playerMoveCost);
+            if (enemy.Active)
+            {
+                enemy.Move(steps);
+                _movementTimer.Reset();
+            }
         }
+    }
+
+    void DeactivateEnemies()
+    {
+        foreach (Enemy enemy in Enemies)
+        {
+            enemy.Deactivate();
+        }
+    }
+
+    public void StartDefusing()
+    {
+        _ui.ShowBomb();
+        _bomb.StartDefusing();
+    }
+
+    public void FinishDefusing()
+    {
+        _ui.HideBomb();
+        foreach (Enemy enemy in Enemies)
+        {
+            enemy.StartFleeing();
+        }
+    }
+
+    public void CancelDefusing()
+    {
+        _ui.HideBomb();
     }
 }

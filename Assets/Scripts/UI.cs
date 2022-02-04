@@ -7,6 +7,7 @@ public class UI : MonoBehaviour
     [SerializeField] private CanvasGroup Menu;
     [SerializeField] private CanvasGroup Game;
     [SerializeField] private CanvasGroup Result;
+    [SerializeField] private CanvasGroup Bomb;
     [SerializeField] private TMP_Text TimerText;
     [SerializeField] private TMP_Text ResultText;
 
@@ -21,6 +22,10 @@ public class UI : MonoBehaviour
     public void ShowGame()
     {
         StartCoroutine(ShowCanvas(Game, 1.0f));
+    }
+    public void ShowBomb()
+    {
+        StartCoroutine(ShowCanvas(Bomb, 1.0f));
     }
 
     public void ShowResult(bool success)
@@ -46,6 +51,11 @@ public class UI : MonoBehaviour
     public void HideResult()
     {
         StartCoroutine(ShowCanvas(Result, 0.0f));
+    }
+
+    public void HideBomb()
+    {
+        StartCoroutine(ShowCanvas(Bomb, 0.0f));
     }
 
     public void UpdateTimer(double gameTime)
@@ -77,6 +87,13 @@ public class UI : MonoBehaviour
             Result.alpha = 0.0f;
             Result.interactable = false;
             Result.blocksRaycasts = false;
+        }
+
+        if (Bomb != null)
+        {
+            Bomb.alpha = 0.0f;
+            Bomb.interactable = false;
+            Bomb.blocksRaycasts = false;
         }
     }
 

@@ -15,6 +15,7 @@ public class Game : MonoBehaviour
     [SerializeField] private AudioSource AudioSource;
     [SerializeField] private int MaxAllowedSpawnDistance = 10; // How many blocks away can enemies spawn from the player
 
+    private const int MovesToTransitionMusic = 3;
     private const int NumberOfLives = 3;
 
     public Player Player { get; private set; }
@@ -28,6 +29,8 @@ public class Game : MonoBehaviour
     private bool _gameInProgress;
     private int _lives = NumberOfLives;
     private int _score;
+    private int _movesToTransitionMusic = 0;
+    private bool _transitionMusic = false;
 
     public void OnClickedNewGame()
     {
@@ -48,7 +51,7 @@ public class Game : MonoBehaviour
         {
             _ui.HideMenu();
             _ui.ShowGame();
-            _ui.HideBomb();
+            CancelDefusing();
         }
 
         if (Player == null)
@@ -74,9 +77,11 @@ public class Game : MonoBehaviour
                 Enemies[i].ID = i;
                 Enemies[i].PathFinder = new PathFinder(_board);
                 // Make sure the enemies spawn away from the player
-                while ((Enemies[i].SpawnPos.x + Enemies[i].SpawnPos.y) < MaxAllowedSpawnDistance)
+                int distance = 0;
+                while (distance < MaxAllowedSpawnDistance)
                 {
                     Enemies[i].SpawnPos = _board.RandomSafePos(true);
+                    distance = Mathf.Abs(Enemies[i].SpawnPos.x - Player.SpawnPos.x) + Mathf.Abs(Enemies[i].SpawnPos.y - Player.SpawnPos.y);
                 }
                 Enemies[i].MoveTo(Enemies[i].SpawnPos);
                 Enemies[i].Activate();
@@ -87,9 +92,11 @@ public class Game : MonoBehaviour
             for (int i = 0; i < Enemies.Count; ++i)
             {
                 // Make sure the enemies spawn away from the player
-                while ((Enemies[i].SpawnPos.x + Enemies[i].SpawnPos.y) < MaxAllowedSpawnDistance)
+                int distance = 0;
+                while (distance < MaxAllowedSpawnDistance)
                 {
                     Enemies[i].SpawnPos = _board.RandomSafePos(true);
+                    distance = Mathf.Abs(Enemies[i].SpawnPos.x - Player.SpawnPos.x) + Mathf.Abs(Enemies[i].SpawnPos.y - Player.SpawnPos.y);
                 }
                 Enemies[i].MoveTo(Enemies[i].SpawnPos);
                 Enemies[i].Activate();
@@ -130,7 +137,7 @@ public class Game : MonoBehaviour
             _ui.HideResult();
             _ui.HideOptions();
             _ui.ShowMenu();
-            _ui.HideBomb();
+            CancelDefusing();
         }
 
         if (Player != null)
@@ -212,6 +219,7 @@ public class Game : MonoBehaviour
                 AudioSource.PlayOneShot(DefeatSound);
                 DeactivateEnemies();
             }
+            _transitionMusic = false;
         }
 
         if (eventType == Board.Event.Win && _ui != null)
@@ -219,6 +227,7 @@ public class Game : MonoBehaviour
             _ui.HideGame();
             _ui.ShowResult(success: true);
             AudioSource.PlayOneShot(VictorySound);
+            _transitionMusic = false;
             Player.Win();
             DeactivateEnemies();
         }
@@ -240,9 +249,10 @@ public class Game : MonoBehaviour
             {
                 foreach (Enemy enemy in Enemies)
                 {
-                    if (enemy.IsFleeing() || enemy.IsChasing())
+                    if ((enemy.IsFleeing() || enemy.IsChasing()) && enemy.IsVisible())
                     {
-                        MusicPlayer.ChangeState(MusicPlayer.MusicPlayerState.Roaming);
+                        _movesToTransitionMusic = MovesToTransitionMusic;
+                        _transitionMusic = true;
                         break;
                     }
                 }
@@ -259,6 +269,15 @@ public class Game : MonoBehaviour
                 enemy.Move(steps);
                 _movementTimer.Reset();
             }
+        }
+        if (_transitionMusic && _movesToTransitionMusic > 0)
+        {
+            --_movesToTransitionMusic;
+        }
+        else if (_transitionMusic)
+        {
+            MusicPlayer.ChangeState(MusicPlayer.MusicPlayerState.Roaming);
+            _transitionMusic = false;
         }
     }
 
@@ -288,6 +307,7 @@ public class Game : MonoBehaviour
 
     public void CancelDefusing()
     {
+        _bomb.CancelDefusing();
         _ui.HideBomb();
     }
 

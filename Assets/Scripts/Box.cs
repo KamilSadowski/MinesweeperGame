@@ -141,7 +141,6 @@ public class Box : MonoBehaviour
     public void UpdateDanger(int dangerNearby, bool revealSquare = true)
     {
         if (IsWall()) return;
-
         DangerNearby = dangerNearby;
         if (_textDisplay != null)
         {
@@ -211,6 +210,7 @@ public class Box : MonoBehaviour
                 _button.spriteState = WallSpriteState;
                 _button.image.sprite =  WallSpriteState.highlightedSprite;
                 _button.interactable = false;
+                _textDisplay.enabled = false;
             }
             else
             {
@@ -236,7 +236,7 @@ public class Box : MonoBehaviour
             _textDisplay.enabled = true;
         }
 
-        if (HasEnemy)
+        if (HasEnemy && EnemyIndex != -1)
         {
             _board.Game.Enemies[EnemyIndex].SetVisible(true);
         }
@@ -284,6 +284,8 @@ public class Box : MonoBehaviour
         _textDisplay = GetComponentInChildren<TMP_Text>(true);
         _button = GetComponent<Button>();
         _audioSource = GetComponent<AudioSource>();
+
+        _textDisplay.enabled = false;
 
         // Reset to a non wall
         Wall(false);

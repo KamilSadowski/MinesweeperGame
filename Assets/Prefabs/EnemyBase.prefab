@@ -136,6 +136,7 @@ MonoBehaviour:
   Board: {fileID: 0}
   SpawnPos: {x: 0, y: 0}
   Text: {fileID: 4839978034737262280}
+  DeathSound: {fileID: 8300000, guid: 8026b43a4d618874fa3c68dff793393b, type: 3}
   Game: {fileID: 0}
   ID: 0
   EnemySpottedNoise: {fileID: 8300000, guid: 7f7b14e3bfa9feb4b9025799a1d485d2, type: 3}
@@ -223,12 +224,12 @@ AudioSource:
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
-  Priority: 128
+  Priority: 4
   DopplerLevel: 1
   MinDistance: 1
-  MaxDistance: 500
+  MaxDistance: 10000
   Pan2D: 0
-  rolloffMode: 0
+  rolloffMode: 1
   BypassEffects: 0
   BypassListenerEffects: 0
   BypassReverbZones: 0

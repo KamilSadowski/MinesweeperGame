@@ -51,6 +51,11 @@ public class Bomb : MonoBehaviour
         Player.FinishDefusing();
     }
 
+    public void CancelDefusing()
+    {
+        _audioSource.Stop();
+    }
+
     public void CutCable(int index)
     {
         // Correct cable

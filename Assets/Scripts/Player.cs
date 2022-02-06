@@ -8,6 +8,7 @@ public class Player : Character
 
     PlayerState _state = PlayerState.inactive;
     Box _selectedBomb;
+    Timer MovementDelay = new Timer(0.25f);
 
     void Awake()
     {
@@ -25,70 +26,82 @@ public class Player : Character
                 }
             case PlayerState.moving:
                 {
-                    // Movement input
-                    if (Input.GetKeyDown(KeyCode.A))
+                    if (MovementDelay.Update(Time.deltaTime))
                     {
-                        _newPos = _2DPos;
-                        --_newPos.x;
-                        MoveTo(_newPos);
-                    }
-                    if (Input.GetKeyDown(KeyCode.D))
-                    {
-                        _newPos = _2DPos;
-                        ++_newPos.x;
-                        MoveTo(_newPos);
-                    }
-                    if (Input.GetKeyDown(KeyCode.S))
-                    {
-                        _newPos = _2DPos;
-                        ++_newPos.y;
-                        MoveTo(_newPos);
-                    }
-                    if (Input.GetKeyDown(KeyCode.W))
-                    {
-                        _newPos = _2DPos;
-                        --_newPos.y;
-                        MoveTo(_newPos);
-                    }
+                        // Movement input
+                        if (Input.GetKeyDown(KeyCode.A))
+                        {
+                            _newPos = _2DPos;
+                            --_newPos.x;
+                            MoveTo(_newPos);
+                            MovementDelay.Reset();
+                        }
+                        if (Input.GetKeyDown(KeyCode.D))
+                        {
+                            _newPos = _2DPos;
+                            ++_newPos.x;
+                            MoveTo(_newPos);
+                            MovementDelay.Reset();
+                        }
+                        if (Input.GetKeyDown(KeyCode.S))
+                        {
+                            _newPos = _2DPos;
+                            ++_newPos.y;
+                            MoveTo(_newPos);
+                            MovementDelay.Reset();
+                        }
+                        if (Input.GetKeyDown(KeyCode.W))
+                        {
+                            _newPos = _2DPos;
+                            --_newPos.y;
+                            MoveTo(_newPos);
+                            MovementDelay.Reset();
+                        }
 
-                    // Skip turn
-                    if (Input.GetKeyDown(KeyCode.Space))
-                    {
-                        MoveTo(_2DPos);
-                    }
+                        // Skip turn
+                        if (Input.GetKeyDown(KeyCode.Space))
+                        {
+                            MoveTo(_2DPos);
+                            MovementDelay.Reset();
+                        }
 
-                    // Defusing input
-                    if (Input.GetKeyDown(KeyCode.DownArrow))
-                    {
-                        if (_2DPos.y + 1 < Board.GetHeight())
+                        // Defusing input
+                        if (Input.GetKeyDown(KeyCode.DownArrow))
                         {
-                            if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y + 1))) Stun();
+                            if (_2DPos.y + 1 < Board.GetHeight())
+                            {
+                                if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y + 1))) Stun();
+                                MovementDelay.Reset();
+                            }
+                            else Stun();
                         }
-                        else Stun();
-                    }
-                    if (Input.GetKeyDown(KeyCode.RightArrow))
-                    {
-                        if (_2DPos.x + 1 < Board.GetWidth())
+                        if (Input.GetKeyDown(KeyCode.RightArrow))
                         {
-                            if (!StartDefusing(new Vector2Int(_2DPos.x + 1, _2DPos.y))) Stun();
+                            if (_2DPos.x + 1 < Board.GetWidth())
+                            {
+                                if (!StartDefusing(new Vector2Int(_2DPos.x + 1, _2DPos.y))) Stun();
+                                MovementDelay.Reset();
+                            }
+                            else Stun();
                         }
-                        else Stun();
-                    }
-                    if (Input.GetKeyDown(KeyCode.UpArrow))
-                    {
-                        if (_2DPos.y - 1 >= 0)
+                        if (Input.GetKeyDown(KeyCode.UpArrow))
                         {
-                            if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y - 1))) Stun();
+                            if (_2DPos.y - 1 >= 0)
+                            {
+                                if (!StartDefusing(new Vector2Int(_2DPos.x, _2DPos.y - 1))) Stun();
+                                MovementDelay.Reset();
+                            }
+                            else Stun();
                         }
-                        else Stun();
-                    }
-                    if (Input.GetKeyDown(KeyCode.LeftArrow))
-                    {
-                        if (_2DPos.x - 1 >= 0)
+                        if (Input.GetKeyDown(KeyCode.LeftArrow))
                         {
-                            if (!StartDefusing(new Vector2Int(_2DPos.x - 1, _2DPos.y))) Stun();
+                            if (_2DPos.x - 1 >= 0)
+                            {
+                                if (!StartDefusing(new Vector2Int(_2DPos.x - 1, _2DPos.y))) Stun();
+                                MovementDelay.Reset();
+                            }
+                            else Stun();
                         }
-                        else Stun();
                     }
 
                     break;
@@ -121,7 +134,7 @@ public class Player : Character
     {
         CancelDefusing();
         _deathParticles.Play();
-        _audioSource.Play();
+        _audioSource.PlayOneShot(DeathSound);
         if (finalLife)
         {
             _state = PlayerState.inactive;

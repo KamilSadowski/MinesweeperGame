@@ -87,13 +87,13 @@ public class Enemy : Character
     // Enemy becoming visible will play a sound
     public override void SetVisible(bool visible)
     {
-        base.SetVisible(visible);
-        if (visible != Visible)
+        if (visible != IsVisible() && visible)
         {
             _audioSource.PlayOneShot(EnemySpottedNoise);
             // The chase state is only triggered when the enemy becomes visible
             if ((_state == EnemyState.chasing || _state == EnemyState.fleeing)) Board.EnemyChaseStart();
         }
+        base.SetVisible(visible);
     }
 
     public override void Deactivate()
@@ -145,7 +145,9 @@ public class Enemy : Character
     public void Move(int steps)
     {
         UpdateText();
-        while (steps > 0)
+        // If not out of the loop in 4 refunds, the ai will just move on
+        int refundNo = 0;
+        while (refundNo < 4 && steps > 0)
         {
             --steps;
             --_costLeft;
@@ -189,6 +191,7 @@ public class Enemy : Character
                                     // Refund steps and start chasing
                                     ++steps;
                                     ++_costLeft;
+                                    ++refundNo;
                                     StartChasing();
                                 }
                             }
@@ -209,6 +212,7 @@ public class Enemy : Character
                                     // Refund steps and start chasing
                                     ++steps;
                                     ++_costLeft;
+                                    ++refundNo;
                                     StartChasing();
                                 }
                             }
@@ -219,6 +223,7 @@ public class Enemy : Character
                                 // Refund steps and start chasing
                                 ++steps;
                                 ++_costLeft;
+                                ++refundNo;
                                 StartChasing();
                             }
 
@@ -239,6 +244,7 @@ public class Enemy : Character
                                             // Exclude the current direction from the random directions and refund the cost
                                             ++steps;
                                             ++_costLeft;
+                                            ++refundNo;
                                             _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(1, 4);
                                         }
                                         
@@ -257,6 +263,7 @@ public class Enemy : Character
                                             // Exclude the current direction from the random directions
                                             ++steps;
                                             ++_costLeft;
+                                            ++refundNo;
                                             _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(1, 4);
                                             if (_roamingDirection == Globals.Direction.East) _roamingDirection = Globals.Direction.North;
                                         }
@@ -275,6 +282,7 @@ public class Enemy : Character
                                             // Exclude the current direction from the random directions
                                             ++steps;
                                             ++_costLeft;
+                                            ++refundNo;
                                             _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(1, 4);
                                             if (_roamingDirection == Globals.Direction.South) _roamingDirection = Globals.Direction.North;
                                         }
@@ -293,6 +301,7 @@ public class Enemy : Character
                                             // Exclude the current direction from the random directions
                                             ++steps;
                                             ++_costLeft;
+                                            ++refundNo;
                                             _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(0, 3);
                                         }
                                         break;
@@ -332,11 +341,7 @@ public class Enemy : Character
                         }
                     case EnemyState.respawning:
                         {
-                            if (!Board.GetBox(SpawnPos).HasPlayer)
-                            {
-                                SetVisible(true);
-                                Respawn();
-                            }
+                            Respawn();
                             break;
                         }
                 } // <-------------------------------------------------------------------------------------------------End of state switch
@@ -367,9 +372,14 @@ public class Enemy : Character
         return true;
     }
 
+    bool CheckIfBoxIsFree(Vector2Int position)
+    {
+        return (!Board.GetBox(position).HasPlayer && (!Board.GetBox(position).HasEnemy && Board.GetBox(position).EnemyIndex != ID));
+    }
+
     public override void Respawn()
     {
-        if (!Board.GetBox(SpawnPos).HasPlayer)
+        if (CheckIfBoxIsFree(SpawnPos))
         {
             Board.EnemyLeftSquare(_2DPos);
             _2DPos = SpawnPos;
@@ -400,7 +410,7 @@ public class Enemy : Character
 
     void StartChasing()
     {
-        if (Visible)
+        if (IsVisible())
         {
             Board.EnemyChaseStart();
             _audioSource.PlayOneShot(EnemyChasingNoise);
@@ -413,8 +423,7 @@ public class Enemy : Character
 
     public void StartFleeing()
     {
-        if (Visible) Board.EnemyChaseStart();
-        SetText("><.><");
+        if (IsVisible()) Board.EnemyChaseStart();
         _fleeingMovesLeft = FleeingMoves;
         _state = EnemyState.fleeing;
         _spriteRenderer.color = FleeingColour;
@@ -423,9 +432,9 @@ public class Enemy : Character
 
     public void Kill()
     {
-        StartRoaming();
-        _audioSource.Play();
+        _audioSource.PlayOneShot(DeathSound);
         _deathParticles.Play();
+        StartRoaming();
     }
 
     void SetText(string text)

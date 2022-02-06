@@ -318,7 +318,7 @@ public class Board : MonoBehaviour
         else
         {
             ++_dangerList[_grid2D[squarePosition.x, squarePosition.y]];
-            Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter(enemyID, Game.Enemies[enemyID].Visible);
+            Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter(enemyID, Game.Enemies[enemyID].IsVisible());
             Grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
         }        
     }

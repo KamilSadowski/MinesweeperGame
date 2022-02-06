@@ -207,6 +207,7 @@ MonoBehaviour:
   Board: {fileID: 0}
   SpawnPos: {x: 0, y: 0}
   Text: {fileID: 5259428668854523338}
+  DeathSound: {fileID: 8300000, guid: 8026b43a4d618874fa3c68dff793393b, type: 3}
 --- !u!82 &-1936515535197405139
 AudioSource:
   m_ObjectHideFlags: 0

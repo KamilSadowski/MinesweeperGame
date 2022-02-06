@@ -8,9 +8,10 @@ public abstract class Character : MonoBehaviour
     public Board Board; // No need to encapsulate since the board is set by the game
     public Vector2Int SpawnPos;
     public bool Active { get; protected set; }
-    public bool Visible { get; protected set; }
+    public bool IsVisible() { return _spriteRenderer.enabled; }
 
     [SerializeField] protected Text Text;
+    [SerializeField] protected AudioClip DeathSound;
 
     protected Vector2Int _2DPos;
     protected Vector2Int _newPos;
@@ -23,7 +24,6 @@ public abstract class Character : MonoBehaviour
 
     public virtual void SetVisible(bool visible)
     {
-        Visible = visible;
         _spriteRenderer.enabled = visible;
         Text.enabled = visible;
     }

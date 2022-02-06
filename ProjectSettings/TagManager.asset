@@ -11,7 +11,7 @@ TagManager:
   - 
   - Water
   - UI
-  - 
+  - Particles
   - 
   - 
   - 
@@ -41,6 +41,18 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: Board
+    uniqueID: 3488931047
+    locked: 0
+  - name: Background
+    uniqueID: 1804452595
+    locked: 0
   - name: Characters
     uniqueID: 238269065
+    locked: 0
+  - name: Foreground
+    uniqueID: 1719670177
+    locked: 0
+  - name: UI
+    uniqueID: 667855965
     locked: 0

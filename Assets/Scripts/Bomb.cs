@@ -14,6 +14,9 @@ public class Bomb : MonoBehaviour
     [SerializeField] Image TextIndicator;
     [SerializeField] Color OnColour;
     [SerializeField] Color OffColour;
+    [SerializeField] AudioClip DefuseSound;
+    [SerializeField] AudioClip WrongSound;
+
     enum CableColours { Blue, Yellow, Green, Red }
     string[] CableColourHex = new string[4] { "0024FF", "FBFF00", "56FF00", "FF0000" };
     char[] CableColourChar = new char[4] { 'B', 'Y', 'G', 'R' };
@@ -21,6 +24,7 @@ public class Bomb : MonoBehaviour
     public Player Player;
     const int CableNo = 4;
 
+    AudioSource _audioSource;
     int[] _correctOrder = new int[4] { 0, 1, 2, 3 }; // Order required to solve the puzzle
     int[] _fakeOrder = new int[4] { 0, 1, 2, 3 }; // Order used to confuse the player
     int _cablesCut;
@@ -30,6 +34,7 @@ public class Bomb : MonoBehaviour
     void Start()
     {
         Player = FindObjectOfType<Player>();
+        _audioSource = GetComponent<AudioSource>();
     }
 
     void Awake()
@@ -40,6 +45,8 @@ public class Bomb : MonoBehaviour
 
     void FinishDefuse()
     {
+        _audioSource.Stop();
+        _audioSource.PlayOneShot(DefuseSound);
         if (Player == null) Player = FindObjectOfType<Player>();
         Player.FinishDefusing();
     }
@@ -61,6 +68,7 @@ public class Bomb : MonoBehaviour
         // Restart the minigame if wrong cable
         else
         {
+            _audioSource.PlayOneShot(WrongSound);
             StartDefusing();
         }
     }
@@ -93,6 +101,7 @@ public class Bomb : MonoBehaviour
     // Starts the minigame by randomising the game mode and order of letters and colours
     public void StartDefusing()
     {
+        _audioSource.Play();
         _cablesCut = 0;
         foreach (Button button in Buttons) button.interactable = true;
 

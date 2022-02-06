@@ -5,11 +5,9 @@ using UnityEngine;
 public class Player : Character
 {
     enum PlayerState { inactive, moving, defusing, stunned };
-    const float StunDuration = 1.0f;
 
     PlayerState _state = PlayerState.inactive;
     Box _selectedBomb;
-    Timer _stunTimer = new Timer(StunDuration);
 
     void Awake()
     {
@@ -97,10 +95,8 @@ public class Player : Character
                 }
             case PlayerState.stunned:
                 {
-                    if (_stunTimer.Update(Time.deltaTime))
-                    {
-                        _state = PlayerState.moving;
-                    }
+                    MoveTo(_2DPos);
+                    _state = PlayerState.moving;
                     break;
                 }
         }
@@ -121,10 +117,19 @@ public class Player : Character
         _state = PlayerState.moving;
     }
 
-    public void Kill()
+    public void Kill(bool finalLife)
     {
         CancelDefusing();
-        _state = PlayerState.inactive;
+        _deathParticles.Play();
+        _audioSource.Play();
+        if (finalLife)
+        {
+            _state = PlayerState.inactive;
+        }
+        else
+        {
+            Respawn();
+        }
     }
     public void Win()
     {
@@ -192,7 +197,11 @@ public class Player : Character
 
     public void Stun()
     {
-        _stunTimer.Reset(StunDuration);
         _state = PlayerState.stunned;
+    }
+
+    public void SetLives(int livesLeft)
+    {
+        _animator.SetInteger("LivesLeft", livesLeft);
     }
 }

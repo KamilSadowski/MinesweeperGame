@@ -8,19 +8,22 @@ public abstract class Character : MonoBehaviour
     public Board Board; // No need to encapsulate since the board is set by the game
     public Vector2Int SpawnPos;
     public bool Active { get; protected set; }
+    public bool Visible { get; protected set; }
 
     [SerializeField] protected Text Text;
 
     protected Vector2Int _2DPos;
     protected Vector2Int _newPos;
     protected SpriteRenderer _spriteRenderer;
-    protected bool _visible;
+    protected AudioSource _audioSource;
+    protected ParticleSystem _deathParticles;
+    protected Animator _animator;
 
     public Vector2Int Position() { return _2DPos; }
 
-    public void Visible(bool visible)
+    public virtual void SetVisible(bool visible)
     {
-        _visible = visible;
+        Visible = visible;
         _spriteRenderer.enabled = visible;
         Text.enabled = visible;
     }
@@ -29,6 +32,9 @@ public abstract class Character : MonoBehaviour
     protected void Initialise()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        _audioSource = GetComponent<AudioSource>();
+        _deathParticles = GetComponent<ParticleSystem>();
+        _animator = GetComponent<Animator>();
         Deactivate();
     }
 

@@ -15,33 +15,41 @@ public class Enemy : Character
     enum EnemyState { inactive, roaming, chasing, fleeing, respawning };
 
     const int FleeingMoves = 20;
+    static readonly int TextDuration = 3; // How many turns the text will be visible for
 
     public Game Game;
     public PathFinder PathFinder;
     public int ID;
 
-    Color _normalColour = new Color(1.0f, 1.0f, 1.0f);
-    Color _fleeingColour = new Color(0.0f, 0.0f, 0.5f);
+    [SerializeField] AudioClip EnemySpottedNoise;
+    [SerializeField] AudioClip EnemyChasingNoise;
+    [SerializeField] int MovementPenalty = 1; // A small movement speed penalty to make escaping easier for the player
+    [SerializeField] int SightDistance = 6; // How far the enemy can see
+    [SerializeField] int HearingDistance = 2; // How far the enemy can hear
+    [SerializeField] int ChasingDistance = 6; // If further than this distance, the enemy will give up on the chase
+
+    [SerializeField] Color NormalColour = new Color(1.0f, 1.0f, 1.0f);
+    [SerializeField] Color FleeingColour = new Color(0.0f, 0.0f, 0.5f);
     int _fleeingMovesLeft = FleeingMoves;
+    int _textDuration = TextDuration;
 
     EnemyState _state;
     List<Vector2Int> _path;
 
     Globals.Direction _roamingDirection; // Currently selected roaming direction
     int _costLeft; // How many moves is it going to cost the enemy to move to the next grid
-    int _movementPenalty = 1; // A small movement speed penalty to make escaping easier for the player
-    int _sightDistance = 4; // How far the enemy can see
-    int _hearingDistance = 2; // How far the enemy can hear
-    int _chasingDistance = 6; // If further than this distance, the enemy will give up on the chase
 
     public bool IsFleeing() { return _state == EnemyState.fleeing; }
+
+    public bool IsChasing() { return _state == EnemyState.chasing; }
 
     // Start is called before the first frame update
     void Awake()
     {
         Initialise();
-        _spriteRenderer.color = _normalColour;
+        _spriteRenderer.color = NormalColour;
         _state = EnemyState.inactive;
+        SetVisible(false);
     }
 
     // Update is called once per frame
@@ -76,6 +84,18 @@ public class Enemy : Character
         }
     }
 
+    // Enemy becoming visible will play a sound
+    public override void SetVisible(bool visible)
+    {
+        base.SetVisible(visible);
+        if (visible != Visible)
+        {
+            _audioSource.PlayOneShot(EnemySpottedNoise);
+            // The chase state is only triggered when the enemy becomes visible
+            if ((_state == EnemyState.chasing || _state == EnemyState.fleeing)) Board.EnemyChaseStart();
+        }
+    }
+
     public override void Deactivate()
     {
         base.Deactivate();
@@ -83,7 +103,7 @@ public class Enemy : Character
     }
     public override void Activate()
     {
-        base.Activate();
+        Active = true;
         StartRoaming();
     }
 
@@ -102,6 +122,7 @@ public class Enemy : Character
         // First index is the current position
         if (_path.Count > 1)
         {
+            Debug.Log(_path.Count);
             MoveTo(_path[1]);
             _path.RemoveAt(0);
         }
@@ -109,18 +130,21 @@ public class Enemy : Character
 
     public override void MoveTo(Vector2Int position)
     {
+        if (Board.GetBox(position).HasEnemy) return;
         Board.EnemyLeftSquare(_2DPos);
+        if (IsChasing() || IsFleeing()) Board.EnemyChaseStart();
         _2DPos = position;
         Box currentBox = Board.GetBox(position);
         transform.position = currentBox.transform.position;
-        Visible(!currentBox.IsActive);
+        SetVisible(!currentBox.IsActive);
         Board.EnemyMovedToSquare(_2DPos, ID);
-        _costLeft = Board.GetBox(_2DPos).Cost + _movementPenalty;
+        _costLeft = Board.GetBox(_2DPos).Cost + MovementPenalty;
     }
 
     // Moves the enemy
     public void Move(int steps)
     {
+        UpdateText();
         while (steps > 0)
         {
             --steps;
@@ -135,13 +159,11 @@ public class Enemy : Character
                 {
                     case EnemyState.inactive:
                         {
-                            Text.text = "";
+                            SetText("");
                             break;
                         }
                     case EnemyState.roaming:
                         {
-                            Text.text = "hmm";
-
                             Vector2Int playerPos = Board.Game.Player.Position();
                             int yDist = Math.Abs(playerPos.y - _2DPos.y);
                             int xDist = Math.Abs(playerPos.x - _2DPos.x);
@@ -151,28 +173,53 @@ public class Enemy : Character
                             // A hearing radius is implemented
 
                             // Check if player is within sight
-                            if (playerPos.x == _2DPos.x && xDist <= _sightDistance)
+                            if (playerPos.y == _2DPos.y && xDist <= SightDistance)
                             {
-                                // Refund steps and start chasing
-                                ++steps;
-                                ++_costLeft;
-                                _state = EnemyState.chasing;
+                                Vector2Int direction;
+                                if (playerPos.x > _2DPos.x)
+                                {
+                                    direction = new Vector2Int(1, 0);
+                                }
+                                else
+                                {
+                                    direction = new Vector2Int(-1, 0);
+                                }
+                                if (LineOfSight(direction, xDist))
+                                {
+                                    // Refund steps and start chasing
+                                    ++steps;
+                                    ++_costLeft;
+                                    StartChasing();
+                                }
                             }
-                            else if (playerPos.y == _2DPos.y && yDist <= _sightDistance)
+                            else if (playerPos.x == _2DPos.x && yDist <= SightDistance)
                             {
-                                // Refund steps and start chasing
-                                ++steps;
-                                ++_costLeft;
-                                _state = EnemyState.chasing;
+                                Vector2Int direction;
+                                if (playerPos.y > _2DPos.y)
+                                {
+                                    direction = new Vector2Int(0, 1);
+                                }
+                                else
+                                {
+                                    direction = new Vector2Int(0, -1);
+                                }
+
+                                if (LineOfSight(direction, yDist))
+                                {
+                                    // Refund steps and start chasing
+                                    ++steps;
+                                    ++_costLeft;
+                                    StartChasing();
+                                }
                             }
 
                             // Check if player was heard
-                            else if (xDist >= _hearingDistance && yDist >= _hearingDistance)
+                            else if (xDist <= HearingDistance && yDist <= HearingDistance)
                             {
                                 // Refund steps and start chasing
                                 ++steps;
                                 ++_costLeft;
-                                _state = EnemyState.chasing;
+                                StartChasing();
                             }
 
 
@@ -255,8 +302,6 @@ public class Enemy : Character
                         }
                     case EnemyState.chasing:
                         {
-                            Text.text = "!?";
-
                             FindPathTo(Game.Player.Position());
                             PathStep();
 
@@ -265,7 +310,7 @@ public class Enemy : Character
                             int yDist = Math.Abs(playerPos.y - _2DPos.y);
                             int xDist = Math.Abs(playerPos.x - _2DPos.x);
 
-                            if (yDist + xDist > _chasingDistance)
+                            if (yDist + xDist > ChasingDistance)
                             {
                                 StartRoaming();
                             }
@@ -274,8 +319,6 @@ public class Enemy : Character
                         }
                     case EnemyState.fleeing:
                         {
-                            Text.text = "X.X";
-
                             FindPathAwayFrom(Game.Player.Position());
                             PathStep();
 
@@ -283,7 +326,7 @@ public class Enemy : Character
                             if (_fleeingMovesLeft <= 0)
                             {
                                 StartRoaming();
-                                _spriteRenderer.color = _normalColour;
+                                _spriteRenderer.color = NormalColour;
                             }
                             break;
                         }
@@ -291,7 +334,7 @@ public class Enemy : Character
                         {
                             if (!Board.GetBox(SpawnPos).HasPlayer)
                             {
-                                Visible(true);
+                                SetVisible(true);
                                 Respawn();
                             }
                             break;
@@ -299,6 +342,29 @@ public class Enemy : Character
                 } // <-------------------------------------------------------------------------------------------------End of state switch
             }
         }
+    }
+
+    // Check if no walls are blocking the sight
+    bool LineOfSight(Vector2Int direction, int distance)
+    {
+        Vector2Int currentPos = _2DPos;
+        int index;
+
+        // Check if there is no blocking walls
+        for (int i = 1; i < distance; ++i)
+        {
+            currentPos += direction;
+            index = Board.TryGetBoxIndex(currentPos);
+            if (index == -1)
+            {
+                return false;
+            }
+            if (Board.GetBox(index).IsWall())
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public override void Respawn()
@@ -309,30 +375,74 @@ public class Enemy : Character
             _2DPos = SpawnPos;
             transform.position = Board.GetBox(SpawnPos).transform.position;
             Box currentBox = Board.GetBox(SpawnPos);
-            Visible(!currentBox.IsActive);
+            SetVisible(!currentBox.IsActive);
             Board.EnemyMovedToSquare(SpawnPos, ID);
-            _state = EnemyState.roaming;
-            _spriteRenderer.color = _normalColour;
+            _spriteRenderer.color = NormalColour;
+            MoveTo(_2DPos);
             StartRoaming();
         }
         else
         {
-            Visible(false);
+            SetVisible(false);
             _state = EnemyState.respawning;
         }
     }
 
     void StartRoaming()
     {
+        SetText("...");
+        Board.EnemyChaseEnd();
         _state = EnemyState.roaming;
         _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(0, 4);
+        _fleeingMovesLeft = 0;
+        _spriteRenderer.color = NormalColour;
+    }
+
+    void StartChasing()
+    {
+        if (Visible)
+        {
+            Board.EnemyChaseStart();
+            _audioSource.PlayOneShot(EnemyChasingNoise);
+            SetText("!?");
+        }
+        _state = EnemyState.chasing;
+        _fleeingMovesLeft = 0;
+        _spriteRenderer.color = NormalColour;
     }
 
     public void StartFleeing()
     {
+        if (Visible) Board.EnemyChaseStart();
+        SetText("><.><");
         _fleeingMovesLeft = FleeingMoves;
         _state = EnemyState.fleeing;
-        _spriteRenderer.color = _fleeingColour;
+        _spriteRenderer.color = FleeingColour;
         _roamingDirection = (Globals.Direction)UnityEngine.Random.Range(0, 4);
+    }
+
+    public void Kill()
+    {
+        StartRoaming();
+        _audioSource.Play();
+        _deathParticles.Play();
+    }
+
+    void SetText(string text)
+    {
+        Text.text = text;
+        _textDuration = TextDuration;
+    }
+
+    void UpdateText()
+    {
+        if (_textDuration > 0)
+        {
+            --_textDuration;
+        }
+        else
+        {
+            Text.text = "";
+        }
     }
 }

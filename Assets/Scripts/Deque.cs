@@ -29,22 +29,23 @@ public class Deque<T>
 
     public void PushFront(T data)
     {
-
+        ++_frontIndex;
+        //_data[index - _frontIndex];
     }
 
     public void PushBack(T data)
     {
-
+        ++_backIndex;
     }
 
     public void RemoveFront()
     {
-
+        --_frontIndex;
     }
 
     public void RemoveBack()
     {
-
+        --_backIndex;
     }
 
 }

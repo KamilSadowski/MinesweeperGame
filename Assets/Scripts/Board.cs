@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Board : MonoBehaviour
 {
-    public enum Event { ClickedBlank, ClickedNearDanger, ClickedDanger, Win };
+    public enum Event { ClickedBlank, ClickedNearDanger, ClickedDanger, Win, ChaseStarted, ChaseEnded };
     public enum Direction { Up, Down, Left, Right };
 
     // Holds data needed for creating a maze
@@ -50,10 +51,13 @@ public class Board : MonoBehaviour
     }
 
     [SerializeField] private Box BoxPrefab;
-    [SerializeField] public const int Width = 10;
-    [SerializeField] public const int Height = 10;
+    [SerializeField] public const int Width = 16;
+    [SerializeField] public const int Height = 16;
     [SerializeField] private const int NumberOfDangerousBoxes = 5;
     [SerializeField] private const int CostFieldChance = 5;
+    [SerializeField] private const int RandomWallRemoveChance = 10;
+
+    [SerializeField] private Sprite[] BoxOverlays;
 
     public Game Game;
     public Box[] Grid { get; private set; }
@@ -107,9 +111,10 @@ public class Board : MonoBehaviour
                 // Reset wall
                 // Top left will always be a passage
                 Grid[_gridCells[_gridCells.Count - 1].TopLeft].Wall(true);
-                Grid[_gridCells[_gridCells.Count - 1].TopRight].Wall(true);
-                Grid[_gridCells[_gridCells.Count - 1].BotLeft].Wall(true);
-                Grid[_gridCells[_gridCells.Count - 1].BotRight].Wall(true);
+                // Give the walls a small chance to not be a wall to make the maze easier to navigate through
+                Grid[_gridCells[_gridCells.Count - 1].TopRight].Wall(!(UnityEngine.Random.Range(0, 100) < RandomWallRemoveChance));
+                Grid[_gridCells[_gridCells.Count - 1].BotLeft].Wall(!(UnityEngine.Random.Range(0, 100) < RandomWallRemoveChance));
+                Grid[_gridCells[_gridCells.Count - 1].BotRight].Wall(!(UnityEngine.Random.Range(0, 100) < RandomWallRemoveChance));
 
                 int topNode = _gridCells.Count - (Width / 2) - 1;
                 if (0 > topNode)
@@ -240,6 +245,7 @@ public class Board : MonoBehaviour
         }
 
         _bombsLeft = NumberOfDangerousBoxes;
+        Game.UpdateBombs(_bombsLeft, NumberOfDangerousBoxes);
 
         _dangerList.RandomShuffle();
 
@@ -307,11 +313,12 @@ public class Board : MonoBehaviour
         if (Grid[_grid2D[squarePosition.x, squarePosition.y]].HasPlayer)
         {
             _clickEvent?.Invoke(Event.ClickedDanger);
+            Grid[_grid2D[squarePosition.x, squarePosition.y]].Blood();
         }
         else
         {
             ++_dangerList[_grid2D[squarePosition.x, squarePosition.y]];
-            Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter(enemyID);
+            Grid[_grid2D[squarePosition.x, squarePosition.y]].EnemyEnter(enemyID, Game.Enemies[enemyID].Visible);
             Grid[_grid2D[squarePosition.x, squarePosition.y]].UpdateBoxAndNeighbours(false);
         }        
     }
@@ -328,10 +335,14 @@ public class Board : MonoBehaviour
         {
             if (!Game.Enemies[Grid[index].EnemyIndex].IsFleeing())
             {
+                Game.Enemies[Grid[index].EnemyIndex].Kill();
+                Grid[index].Blood();
+                Game.EnemyKilled();
                 _clickEvent?.Invoke(Event.ClickedDanger);
             }
             else
             {
+                Grid[index].Blood();
                 Game.Enemies[Grid[index].EnemyIndex].Respawn();
             }
 
@@ -384,6 +395,7 @@ public class Board : MonoBehaviour
     {
         --_bombsLeft;
         --_dangerList[index];
+        Game.UpdateBombs(_bombsLeft, NumberOfDangerousBoxes);
         if (_bombsLeft == 0)
         {
             // Game is won if no bombs left to defuse
@@ -431,7 +443,7 @@ public class Board : MonoBehaviour
             {
                 int index = row * Width + column;
                 Grid[index] = Instantiate(BoxPrefab, rowObj.transform);
-                Grid[index].Setup(index, row, column, this);
+                Grid[index].Setup(index, row, column, this, BoxOverlays[UnityEngine.Random.Range(0, BoxOverlays.Length)]);
                 RectTransform gridBoxTransform = Grid[index].transform as RectTransform;
                 //_grid[index].name = string.Format("ID{0}, Row{1}, Column{2}", index, row, column);
                 gridBoxTransform.anchoredPosition = new Vector2( startPosition.x + (boxRect.sizeDelta.x * column), 0.0f);
@@ -472,7 +484,9 @@ public class Board : MonoBehaviour
         if(box.IsDangerous)
         {
             clickEvent = Event.ClickedDanger;
-            box.Defuse();
+            box.Defuse(true);
+            box.Blood();
+            Game.Explode();
         }
         else if(box.DangerNearby > 0)
         {
@@ -591,5 +605,14 @@ public class Board : MonoBehaviour
         else if (x >= Width) { return -1; }
         else if (y >= Height) { return -1; }
         return _grid2D[x, y];
+    }
+
+    public void EnemyChaseStart()
+    {
+        _clickEvent.Invoke(Event.ChaseStarted);
+    }
+    public void EnemyChaseEnd()
+    {
+        _clickEvent.Invoke(Event.ChaseEnded);
     }
 }
